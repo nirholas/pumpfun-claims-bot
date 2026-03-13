@@ -73,7 +73,7 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
     const aff = ctx.affiliates;
 
     // ━━ HEADER BADGE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    L.push(`🚨🚨🚨 <b>FIRST GITHUB FEE CLAIM</b>`);
+    L.push(`🚨🚨🚨 <b>FIRST CREATOR FEE CLAIM</b>`);
 
     // Influencer badge right after header
     const tier = getInfluencerTier(
@@ -423,22 +423,19 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
     }
 
     // ━━ SOCIALS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    if (tokenInfo) {
-        if (tokenInfo.twitter) {
-            const handle = cleanXHandle(tokenInfo.twitter);
-            if (handle) {
-                L.push(`𝕏 <a href="https://x.com/${esc(handle)}">${esc(handle)}</a>`);
-            } else {
-                L.push(`𝕏 <a href="${esc(tokenInfo.twitter)}">Twitter</a>`);
-            }
+    if (githubUser?.twitterUsername) {
+        const handle = cleanXHandle(githubUser.twitterUsername);
+        if (handle) {
+            L.push(`𝕏 <a href="https://x.com/${esc(handle)}">${esc(handle)}</a>`);
         }
-        if (tokenInfo.telegram) {
-            L.push(`💬 <a href="${esc(tokenInfo.telegram)}">Telegram</a>`);
-        }
-        if (tokenInfo.website) {
-            const host = tokenInfo.website.replace(/^https?:\/\//, '').replace(/\/+$/, '').slice(0, 30);
-            L.push(`🌐 <a href="${esc(tokenInfo.website)}">${esc(host)}</a>`);
-        }
+    }
+    if (ctx.repoInfo?.htmlUrl) {
+        const repoPath = ctx.repoInfo.htmlUrl.replace(/^https?:\/\/github\.com\//, '').replace(/\/+$/, '');
+        L.push(`🌐 <a href="${esc(ctx.repoInfo.htmlUrl)}">github.com/${esc(repoPath)}</a>`);
+    } else if (tokenInfo?.githubUrls?.length) {
+        const repoUrl = tokenInfo.githubUrls[0]!;
+        const repoPath = repoUrl.replace(/^https?:\/\/github\.com\//, '').replace(/\/+$/, '');
+        L.push(`🌐 <a href="${esc(repoUrl)}">github.com/${esc(repoPath)}</a>`);
     }
     L.push('');
 

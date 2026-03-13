@@ -84,20 +84,11 @@ async function main(): Promise<void> {
         }
     }
 
-    /** Telegram caption limit for sendPhoto (characters). */
-    const TELEGRAM_CAPTION_LIMIT = 1024;
-
     /** Send a photo with caption to the channel. Falls back to text if photo fails. */
     async function postPhotoToChannel(imageUrl: string, caption: string): Promise<void> {
-        // Truncate at the last newline before the limit so we never cut inside an HTML tag.
-        let photoCaption = caption;
-        if (caption.length > TELEGRAM_CAPTION_LIMIT) {
-            const cutoff = caption.lastIndexOf('\n', TELEGRAM_CAPTION_LIMIT - 4);
-            photoCaption = (cutoff > 0 ? caption.slice(0, cutoff) : caption.slice(0, TELEGRAM_CAPTION_LIMIT - 1)) + '\n…';
-        }
         try {
             await withRetry(() => bot.api.sendPhoto(config.channelId, imageUrl, {
-                caption: photoCaption,
+                caption,
                 parse_mode: 'HTML',
             }));
         } catch (err) {
@@ -179,14 +170,6 @@ async function main(): Promise<void> {
                 mint ? fetchTokenInfo(mint) : Promise.resolve(null),
                 fetchSolUsdPrice(),
             ]);
-
-            // Skip accounts with no public repos — not real developers
-            if (!githubUser || githubUser.publicRepos === 0) {
-                log.debug('Skipping claim by GitHub user %s — 0 public repos', event.githubUserId);
-                markGithubUserClaimed(event.githubUserId, mint);
-                return;
-            }
-
             // Second wave: depends on first-wave results
             const [xProfile, repoInfo, creatorProfile, holders, trades, liquidity, bundle, sameNameTokens] = await Promise.all([
                 githubUser?.twitterUsername

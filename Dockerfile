@@ -33,5 +33,5 @@ USER bot
 
 EXPOSE 3000
 
-CMD ["node", "--enable-source-maps", "--max-old-space-size=2048", "dist/index.js"]
+CMD ["node", "--enable-source-maps", "dist/index.js"]
 
