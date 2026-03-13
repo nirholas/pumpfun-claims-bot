@@ -15,7 +15,7 @@ import { Bot, type BotError } from 'grammy';
 import { loadConfig } from './config.js';
 import { ClaimMonitor } from './claim-monitor.js';
 import { EventMonitor } from './event-monitor.js';
-import { hasGithubUserClaimed, markGithubUserClaimed, incrementGithubClaimCount, getGithubUserClaimedMints, loadPersistedClaims } from './claim-tracker.js';
+import { hasGithubUserClaimed, markGithubUserClaimed, incrementGithubClaimCount, getGithubUserClaimedMints, loadPersistedClaims, flushPersistedClaims } from './claim-tracker.js';
 import { fetchTokenInfo, fetchTopHolders, fetchTokenTrades, fetchDevWalletInfo, fetchSolUsdPrice, fetchPoolLiquidity, fetchBundleInfo, fetchCreatorProfile, fetchSameNameTokens } from './pump-client.js';
 import { fetchGitHubUserById, fetchRepoFromUrls } from './github-client.js';
 import { fetchXProfile } from './x-client.js';
@@ -177,9 +177,11 @@ async function main(): Promise<void> {
                     for (const m of allMints) markGithubUserClaimed(event.githubUserId!, m);
                 }
             } else {
-                // No on-chain lifetime (fake/dust): fall back to local persistence
-                isFirstClaim =
-                    !(pdaKey && hasGithubUserClaimed(event.githubUserId!, pdaKey));
+                // No on-chain lifetime data → cannot verify this is a first claim.
+                // Policy: ONLY post when on-chain data confirms lifetime == amount.
+                // Skipping prevents false "FIRST CLAIM" posts after redeployment.
+                isFirstClaim = false;
+                log.debug('Skipping claim by %s on %s — no on-chain lifetime data, cannot verify first-claim', event.githubUserId, mint.slice(0, 8));
             }
 
             log.info('Claim check: user=%s mint=%s first=%s lifetime=%s claim=%s localKnown=%s',
@@ -204,6 +206,16 @@ async function main(): Promise<void> {
                 mint ? fetchTokenInfo(mint) : Promise.resolve(null),
                 fetchSolUsdPrice(),
             ]);
+
+            // "Other places" gate: GitHub account must exist and have at least 1 public repo.
+            // A 0-repo account is not a verifiable developer, regardless of on-chain data.
+            if (!githubUser || githubUser.publicRepos === 0) {
+                log.debug('Skipping claim by GitHub user %s — account unverifiable (%s repos)',
+                    event.githubUserId, githubUser?.publicRepos ?? 'null');
+                markGithubUserClaimed(event.githubUserId!);
+                return;
+            }
+
             // Second wave: depends on first-wave results
             const [xProfile, repoInfo, creatorProfile, holders, trades, liquidity, bundle, sameNameTokens] = await Promise.all([
                 githubUser?.twitterUsername
@@ -267,6 +279,10 @@ async function main(): Promise<void> {
                 if (pdaKey) markGithubUserClaimed(event.githubUserId!, pdaKey);
                 markGithubUserClaimed(event.githubUserId!, mint);
                 for (const m of allMints) markGithubUserClaimed(event.githubUserId!, m);
+                // Flush to disk immediately — don't wait for the debounce.
+                // If the process restarts within the debounce window the state
+                // must already be persisted so we don't double-post.
+                flushPersistedClaims();
                 pipeline.posted++;
                 log.info('✅ Posted GitHub claim by %s (%s) to %s',
                     event.githubUserId, githubUser?.login ?? '?', config.channelId);
