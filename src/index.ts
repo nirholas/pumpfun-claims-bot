@@ -179,6 +179,14 @@ async function main(): Promise<void> {
                 mint ? fetchTokenInfo(mint) : Promise.resolve(null),
                 fetchSolUsdPrice(),
             ]);
+
+            // Skip accounts with no public repos — not real developers
+            if (!githubUser || githubUser.publicRepos === 0) {
+                log.debug('Skipping claim by GitHub user %s — 0 public repos', event.githubUserId);
+                markGithubUserClaimed(event.githubUserId, mint);
+                return;
+            }
+
             // Second wave: depends on first-wave results
             const [xProfile, repoInfo, creatorProfile, holders, trades, liquidity, bundle, sameNameTokens] = await Promise.all([
                 githubUser?.twitterUsername

@@ -73,7 +73,7 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
     const aff = ctx.affiliates;
 
     // ━━ HEADER BADGE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    L.push(`🚨🚨🚨 <b>FIRST CREATOR FEE CLAIM</b>`);
+    L.push(`🚨🚨🚨 <b>FIRST GITHUB FEE CLAIM</b>`);
 
     // Influencer badge right after header
     const tier = getInfluencerTier(
