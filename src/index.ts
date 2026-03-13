@@ -238,10 +238,11 @@ async function main(): Promise<void> {
             }
         }
 
-        // ── Path B: Creator fee claims (collect_creator_fee, collect_coin_creator_fee, distribute_creator_fees) ──
-        else if (event.claimType === 'collect_creator_fee' ||
-                 event.claimType === 'collect_coin_creator_fee' ||
-                 (event.claimType === 'distribute_creator_fees' && config.feed.feeDistributions)) {
+        // ── Path B: Creator fee claims (only when FEED_FEE_DISTRIBUTIONS=true) ──
+        else if (config.feed.feeDistributions &&
+                 (event.claimType === 'collect_creator_fee' ||
+                  event.claimType === 'collect_coin_creator_fee' ||
+                  event.claimType === 'distribute_creator_fees')) {
             pipeline.creatorClaims++;
 
             const mint = event.tokenMint?.trim() || '';

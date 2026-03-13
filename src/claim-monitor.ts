@@ -300,11 +300,8 @@ export class ClaimMonitor {
                     this.socialFeeIndex.updateFromCreateEvent(bytes);
                 } else if (disc === UPDATE_FEE_SHARES_EVENT_DISC) {
                     this.socialFeeIndex.updateFromUpdateSharesEvent(bytes);
-                } else if (
-                    disc === '7a027f010ebf0caf' || // CollectCreatorFeeEvent
-                    disc === 'a537817004b3ca28' || // DistributeCreatorFeesEvent
-                    disc === 'e8f5c2eeeada3a59'    // CollectCoinCreatorFeeEvent
-                ) {
+                } else if (disc === '3212c141edd2eaec') {
+                    // SocialFeePdaClaimed event — treat as a social fee PDA claim
                     hasClaimIx = true;
                 }
             } catch { /* ignore unparseable */ }
