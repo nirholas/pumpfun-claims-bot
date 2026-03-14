@@ -86,6 +86,12 @@ async function main(): Promise<void> {
 
     /** Send a photo with caption to the channel. Falls back to text if photo fails. */
     async function postPhotoToChannel(imageUrl: string, caption: string): Promise<void> {
+        // Telegram photo captions are limited to 1024 chars; skip photo if caption exceeds limit
+        if (caption.length > 1024) {
+            log.warn('Caption too long for photo (%d chars), sending as text', caption.length);
+            await postToChannel(caption);
+            return;
+        }
         try {
             await withRetry(() => bot.api.sendPhoto(config.channelId, imageUrl, {
                 caption,
