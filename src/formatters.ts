@@ -113,7 +113,7 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
             }
         } else if (tokenInfo.curveProgress > 0) {
             const pct = Math.round(tokenInfo.curveProgress);
-            L.push(`📈 Status: Bonding curve (${pct > 0 ? `${pct}%` : '<1%'})`);
+            L.push(`📈 Status: Bonding curve (${pct > 0 ? `${pct}%` : '&lt;1%'})`);
         } else {
             L.push('📈 Status: Bonding curve');
         }
@@ -477,7 +477,7 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
             L.push('🎓 Status: Graduated (AMM)');
         } else if (tokenInfo.curveProgress > 0) {
             const pct = Math.round(tokenInfo.curveProgress);
-            L.push(`📈 Status: Bonding curve (${pct > 0 ? `${pct}%` : '<1%'})`);
+            L.push(`📈 Status: Bonding curve (${pct > 0 ? `${pct}%` : '&lt;1%'})`);
         }
         if (tokenInfo.athMarketCap > 0) {
             L.push(`🏆 ATH: $${formatCompact(tokenInfo.athMarketCap)}`);
@@ -882,7 +882,7 @@ export function formatWhaleFeed(
     const bcp = Math.round(event.bondingCurveProgress);
     const filled = Math.round(event.bondingCurveProgress / 10);
     const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
-    lines.push(`💹  Mcap: ${mcap}  ·  [${bar}] ${bcp > 0 ? `${bcp}%` : '<1%'}`);
+    lines.push(`💹  Mcap: ${mcap}  ·  [${bar}] ${bcp > 0 ? `${bcp}%` : '&lt;1%'}`);
     lines.push(`💰  Fee: ${event.fee.toFixed(4)} SOL  ·  Creator: ${event.creatorFee.toFixed(4)} SOL`);
 
     lines.push('');

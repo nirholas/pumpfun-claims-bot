@@ -181,7 +181,7 @@ async function main(): Promise<void> {
                 // Policy: ONLY post when on-chain data confirms lifetime == amount.
                 // Skipping prevents false "FIRST CLAIM" posts after redeployment.
                 isFirstClaim = false;
-                log.debug('Skipping claim by %s on %s — no on-chain lifetime data, cannot verify first-claim', event.githubUserId, mint.slice(0, 8));
+                log.warn('Skipping claim by %s on %s — no on-chain lifetime data (amount=%d), cannot verify first-claim', event.githubUserId, mint.slice(0, 8), event.amountLamports);
             }
 
             log.info('Claim check: user=%s mint=%s first=%s lifetime=%s claim=%s localKnown=%s',
@@ -210,8 +210,8 @@ async function main(): Promise<void> {
             // "Other places" gate: GitHub account must exist and have at least 1 public repo.
             // A 0-repo account is not a verifiable developer, regardless of on-chain data.
             if (!githubUser || githubUser.publicRepos === 0) {
-                log.debug('Skipping claim by GitHub user %s — account unverifiable (%s repos)',
-                    event.githubUserId, githubUser?.publicRepos ?? 'null');
+                log.warn('Skipping FIRST claim by GitHub user %s — account unverifiable (%s repos, login=%s)',
+                    event.githubUserId, githubUser?.publicRepos ?? 'null', githubUser?.login ?? 'lookup-failed');
                 markGithubUserClaimed(event.githubUserId!);
                 return;
             }
