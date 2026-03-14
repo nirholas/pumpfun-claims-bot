@@ -19,7 +19,7 @@ import { hasGithubUserClaimed, markGithubUserClaimed, incrementGithubClaimCount,
 import { fetchTokenInfo, fetchTopHolders, fetchTokenTrades, fetchDevWalletInfo, fetchSolUsdPrice, fetchPoolLiquidity, fetchBundleInfo, fetchCreatorProfile, fetchSameNameTokens } from './pump-client.js';
 import { fetchGitHubUserById, fetchRepoFromUrls } from './github-client.js';
 import { fetchXProfile } from './x-client.js';
-import { formatGitHubClaimFeed, formatCreatorClaimFeed, formatGraduationFeed } from './formatters.js';
+import { formatGitHubClaimFeed, formatCreatorClaimFeed, formatGraduationFeed, sanitiseHtml } from './formatters.js';
 import type { ClaimFeedContext, CreatorClaimContext } from './formatters.js';
 import { log, setLogLevel } from './logger.js';
 import { startHealthServer, stopHealthServer } from './health.js';
@@ -73,8 +73,9 @@ async function main(): Promise<void> {
 
     /** Send a message to the channel. Throws on failure. */
     async function postToChannel(message: string): Promise<void> {
+        const safe = sanitiseHtml(message);
         try {
-            await withRetry(() => bot.api.sendMessage(config.channelId, message, {
+            await withRetry(() => bot.api.sendMessage(config.channelId, safe, {
                 parse_mode: 'HTML',
                 link_preview_options: { is_disabled: true },
             }));
@@ -86,20 +87,24 @@ async function main(): Promise<void> {
 
     /** Send a photo with caption to the channel. Falls back to text if photo fails. */
     async function postPhotoToChannel(imageUrl: string, caption: string): Promise<void> {
-        // Telegram photo captions are limited to 1024 chars; skip photo if caption exceeds limit
-        if (caption.length > 1024) {
-            log.warn('Caption too long for photo (%d chars), sending as text', caption.length);
-            await postToChannel(caption);
+        const safe = sanitiseHtml(caption);
+        // Telegram photo captions are limited to 1024 chars.
+        // Use UTF-8 byte length (not JS string length) because Telegram counts bytes,
+        // and emojis/Unicode take 3-4 bytes each.
+        const byteLen = Buffer.byteLength(safe, 'utf8');
+        if (byteLen > 1024) {
+            log.warn('Caption too long for photo (%d bytes, %d chars), sending as text', byteLen, safe.length);
+            await postToChannel(safe);
             return;
         }
         try {
             await withRetry(() => bot.api.sendPhoto(config.channelId, imageUrl, {
-                caption,
+                caption: safe,
                 parse_mode: 'HTML',
             }));
         } catch (err) {
             log.warn('Photo send failed, falling back to text: %s', err);
-            await postToChannel(caption);
+            await postToChannel(safe);
         }
     }
 

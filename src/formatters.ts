@@ -113,7 +113,7 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
             }
         } else if (tokenInfo.curveProgress > 0) {
             const pct = Math.round(tokenInfo.curveProgress);
-            L.push(`📈 Status: Bonding curve (${pct > 0 ? `${pct}%` : '&lt;1%'})`);
+            L.push(`📈 Status: Bonding curve (${pct > 0 ? `${pct}%` : '≤1%'})`);
         } else {
             L.push('📈 Status: Bonding curve');
         }
@@ -477,7 +477,7 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
             L.push('🎓 Status: Graduated (AMM)');
         } else if (tokenInfo.curveProgress > 0) {
             const pct = Math.round(tokenInfo.curveProgress);
-            L.push(`📈 Status: Bonding curve (${pct > 0 ? `${pct}%` : '&lt;1%'})`);
+            L.push(`📈 Status: Bonding curve (${pct > 0 ? `${pct}%` : '≤1%'})`);
         }
         if (tokenInfo.athMarketCap > 0) {
             L.push(`🏆 ATH: $${formatCompact(tokenInfo.athMarketCap)}`);
@@ -882,7 +882,7 @@ export function formatWhaleFeed(
     const bcp = Math.round(event.bondingCurveProgress);
     const filled = Math.round(event.bondingCurveProgress / 10);
     const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
-    lines.push(`💹  Mcap: ${mcap}  ·  [${bar}] ${bcp > 0 ? `${bcp}%` : '&lt;1%'}`);
+    lines.push(`💹  Mcap: ${mcap}  ·  [${bar}] ${bcp > 0 ? `${bcp}%` : '≤1%'}`);
     lines.push(`💰  Fee: ${event.fee.toFixed(4)} SOL  ·  Creator: ${event.creatorFee.toFixed(4)} SOL`);
 
     lines.push('');
@@ -955,6 +955,42 @@ export function esc(text: string): string {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+/**
+ * Sanitise a complete Telegram HTML message by escaping stray `<` / `>`
+ * characters that are NOT part of a recognised Telegram tag or `&`-entity.
+ * Recognised tags: b, strong, i, em, u, ins, s, strike, del, span, tg-spoiler,
+ *                  a, code, pre, blockquote, tg-emoji.
+ */
+const TG_TAG_RE = /<\/?\s*(?:b|strong|i|em|u|ins|s|strike|del|span|tg-spoiler|a|code|pre|blockquote|tg-emoji)\b[^>]*>/gi;
+export function sanitiseHtml(html: string): string {
+    // Replace every < that is NOT the start of a recognised tag with &lt;
+    // Approach: split on recognised tags, escape within each gap, rejoin.
+    const tags: { match: string; index: number }[] = [];
+    let m: RegExpExecArray | null;
+    const re = new RegExp(TG_TAG_RE.source, 'gi');
+    while ((m = re.exec(html)) !== null) tags.push({ match: m[0], index: m.index });
+
+    if (tags.length === 0) {
+        // No recognised tags at all — escape every < and >
+        return html.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    let out = '';
+    let cursor = 0;
+    for (const t of tags) {
+        // Text before the tag — escape stray angle brackets
+        const gap = html.slice(cursor, t.index);
+        out += gap.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        // The tag itself — keep as-is
+        out += t.match;
+        cursor = t.index + t.match.length;
+    }
+    // Trailing text after the last tag
+    const tail = html.slice(cursor);
+    out += tail.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return out;
 }
 
 function formatTime(unixSeconds: number): string {
