@@ -192,13 +192,35 @@ async function main(): Promise<void> {
                 // We already posted for this user before — always a repeat
                 isFirstClaim = false;
             } else if (event.lifetimeClaimedLamports != null && event.amountLamports > 0) {
-                // Step 2: On-chain verification — lifetime must equal current claim
-                isFirstClaim = event.lifetimeClaimedLamports <= event.amountLamports;
-                if (!isFirstClaim) {
+                // Step 2: On-chain verification — lifetime must equal current claim amount.
+                // This catches the common repeat-claim case when lifetime data is correctly parsed.
+                const lifetimeMatchesAmount = event.lifetimeClaimedLamports <= event.amountLamports;
+                if (!lifetimeMatchesAmount) {
+                    isFirstClaim = false;
                     // Backfill local keys so future repeat events are rejected without on-chain lookup
                     markGithubUserClaimed(event.githubUserId!);
                     if (pdaKey) markGithubUserClaimed(event.githubUserId!, pdaKey);
                     for (const m of allMints) markGithubUserClaimed(event.githubUserId!, m);
+                } else if (event.socialFeePda && claimMonitor) {
+                    // Step 3: PDA history check — even when lifetime==amount looks correct,
+                    // verify the PDA itself has no prior transactions. This guards against:
+                    //   a) lifetime field parsing bugs returning wrong values
+                    //   b) cross-program history (user claimed via old program, new PDA is fresh)
+                    const pdaHasPrior = await claimMonitor.pdaHasPriorTransactions(
+                        event.socialFeePda, event.txSignature,
+                    );
+                    if (pdaHasPrior) {
+                        isFirstClaim = false;
+                        log.warn('Claim by %s on %s: lifetime==amount but PDA %s has prior txs — treating as repeat',
+                            event.githubUserId, mint.slice(0, 8), event.socialFeePda.slice(0, 8));
+                        markGithubUserClaimed(event.githubUserId!);
+                        if (pdaKey) markGithubUserClaimed(event.githubUserId!, pdaKey);
+                        for (const m of allMints) markGithubUserClaimed(event.githubUserId!, m);
+                    } else {
+                        isFirstClaim = true;
+                    }
+                } else {
+                    isFirstClaim = lifetimeMatchesAmount;
                 }
             } else {
                 // No on-chain lifetime data → cannot verify this is a first claim.

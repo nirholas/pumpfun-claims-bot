@@ -158,6 +158,26 @@ export class ClaimMonitor {
         this.rpcQueue = new RpcQueue((sig) => this.processTransaction(sig));
     }
 
+    /**
+     * Returns true if the given social fee PDA has any transactions BEFORE
+     * the specified signature. Used to verify that a claim with lifetime==amount
+     * on-chain is genuinely the first-ever transaction on this PDA (not just a
+     * parsing artifact or cross-program history gap).
+     */
+    async pdaHasPriorTransactions(pdaAddress: string, beforeSig: string): Promise<boolean> {
+        try {
+            const pubkey = new PublicKey(pdaAddress);
+            const sigs = await this.rpc.withFallback((conn) =>
+                conn.getSignaturesForAddress(pubkey, { limit: 1, before: beforeSig }),
+            );
+            return sigs.length > 0;
+        } catch (err) {
+            // On RPC error, err on the side of caution — do NOT post
+            log.warn('pdaHasPriorTransactions: RPC error for %s: %s', pdaAddress.slice(0, 8), err);
+            return true;
+        }
+    }
+
     async start(): Promise<void> {
         if (this.isRunning) return;
         this.isRunning = true;
