@@ -25,6 +25,7 @@ const SECTIONS = [
 ]
 
 export default function Docs() {
+  useSEO('Documentation', 'PumpKit documentation — getting started, tutorials, architecture, API reference, bot commands, and FAQ for the PumpFun monitoring framework.')
   const [active, setActive] = useState('getting-started')
   const containerRef = useRef<HTMLDivElement>(null)
 

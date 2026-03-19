@@ -80,7 +80,10 @@ const BADGE_CLASSES: Record<string, string> = {
   New:     'bg-pump-yellow/20 text-pump-yellow border border-pump-yellow/30',
 }
 
+import { useSEO } from '../hooks/useSEO'
+
 export default function Packages() {
+  useSEO('Packages', 'PumpKit npm packages — @pumpkit/core, @pumpkit/monitor, @pumpkit/channel, @pumpkit/claim, @pumpkit/tracker. Open-source TypeScript modules for PumpFun on Solana.')
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
 

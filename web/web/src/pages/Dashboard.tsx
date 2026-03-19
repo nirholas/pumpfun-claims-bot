@@ -184,6 +184,7 @@ const FILTERS: { id: Filter; label: string }[] = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
+  useSEO('Live Dashboard', 'Real-time PumpFun event feed — token launches, whale trades, graduations, and fee claims streaming live from Solana.')
   const { events: liveEvents, connected, error } = useEventStream()
   const mockEvents  = useMockFeed()
   const useMock     = !connected && liveEvents.length === 0
