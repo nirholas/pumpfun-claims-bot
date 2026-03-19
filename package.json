@@ -1,8 +1,40 @@
 {
-  "name": "pumpfun-channel-bot",
+  "name": "pumpfun-claims-bot",
   "version": "1.0.0",
-  "description": "PumpFun read-only Telegram channel feed — broadcasts token launches, graduations, whale trades, fee claims and distributions",
+  "description": "PumpFun on-chain intelligence — Telegram feed + MCP server for AI assistants. Query token data, GitHub social fee claims, creator profiles, and more.",
   "type": "module",
+  "license": "MIT",
+  "author": "nirholas",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nirholas/pumpfun-claims-bot.git"
+  },
+  "homepage": "https://github.com/nirholas/pumpfun-claims-bot#mcp-server",
+  "bugs": {
+    "url": "https://github.com/nirholas/pumpfun-claims-bot/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "pumpfun",
+    "solana",
+    "claims",
+    "telegram",
+    "bot",
+    "defi",
+    "on-chain",
+    "ai",
+    "claude",
+    "copilot"
+  ],
+  "bin": {
+    "pumpfun-claims-bot": "dist/mcp-stdio.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=20.0.0"
   },
@@ -12,6 +44,7 @@
     "mcp": "node dist/mcp-stdio.js",
     "mcp:dev": "tsx src/mcp-stdio.ts",
     "build": "tsc",
+    "prepublishOnly": "npm run build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"

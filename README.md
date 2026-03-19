@@ -9,6 +9,8 @@
   <a href="LICENSE"><img src="https://img.shields.io/github/license/nirholas/pumpfun-claims-bot?color=blue" alt="License"></a>
   <a href="https://github.com/nirholas/pumpfun-claims-bot/stargazers"><img src="https://img.shields.io/github/stars/nirholas/pumpfun-claims-bot?style=social" alt="Stars"></a>
   <a href="https://t.me/pumpfunclaims"><img src="https://img.shields.io/badge/Telegram-@pumpfunclaims-229ED9?logo=telegram" alt="Telegram"></a>
+  <a href="https://www.npmjs.com/package/pumpfun-claims-bot"><img src="https://img.shields.io/npm/v/pumpfun-claims-bot?color=cb3837&logo=npm" alt="npm"></a>
+  <img src="https://img.shields.io/badge/MCP-compatible-6366f1?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0xMiAyTDIgN3Y1aDN2Nmg2di02aDJWN2gzVjdMMTIgMnoiLz48L3N2Zz4=" alt="MCP">
   <img src="https://img.shields.io/badge/Node.js-%3E%3D20-339933?logo=node.js" alt="Node.js">
   <img src="https://img.shields.io/badge/Solana-mainnet-9945FF?logo=solana" alt="Solana">
   <a href="https://railway.com/deploy/Qab59T?referralCode=tqNsEB"><img src="https://img.shields.io/badge/Deploy-Railway-0B0D0E?logo=railway" alt="Deploy on Railway"></a>
@@ -19,7 +21,7 @@
 </p>
 
 <p align="center">
-  <strong><a href="https://pumpfun-claims-bot.vercel.app">Website</a></strong> · <strong><a href="https://t.me/pumpfunclaims">Live Channel</a></strong> · <strong><a href="docs/railway-github-claims.md">Deploy Guide</a></strong> · <strong><a href="CONTRIBUTING.md">Contributing</a></strong>
+  <strong><a href="https://pumpfun-claims-bot.vercel.app">Website</a></strong> · <strong><a href="https://t.me/pumpfunclaims">Live Channel</a></strong> · <strong><a href="#mcp-server">MCP Server</a></strong> · <strong><a href="docs/railway-github-claims.md">Deploy Guide</a></strong> · <strong><a href="CONTRIBUTING.md">Contributing</a></strong>
 </p>
 
 ---
@@ -223,6 +225,8 @@ LOG_LEVEL=info                   # debug | info | warn | error (default: info)
 | `WHALE_THRESHOLD_SOL` | — | `10` | Minimum SOL trade size to trigger a whale alert |
 | `LOG_LEVEL` | — | `info` | Log verbosity: `debug` \| `info` \| `warn` \| `error` |
 | `PORT` | — | `3000` | Health check HTTP server port — set automatically by [Railway](https://railway.app) |
+| `MCP_ENABLED` | — | `false` | Enable the MCP (Model Context Protocol) server for AI assistant integrations |
+| `MCP_PORT` | — | `3001` | MCP server HTTP port (Streamable HTTP transport) |
 
 ### 3. Run
 
@@ -297,6 +301,8 @@ channel-bot/
 ├── src/
 │   ├── index.ts              # Entry point — wires monitors, enrichment, & Telegram posting
 │   ├── config.ts             # Environment variable loading & validation
+│   ├── mcp-server.ts         # MCP server — exposes tools via Streamable HTTP or stdio
+│   ├── mcp-stdio.ts          # Standalone MCP entry point (stdio transport)
 │   ├── claim-monitor.ts      # PumpFees program monitor (WebSocket + HTTP polling)
 │   ├── claim-tracker.ts      # First-claim detection + claim counter (persisted to disk)
 │   ├── event-monitor.ts      # Pump program log decoder (graduations, launches)
@@ -494,6 +500,69 @@ A React-based web frontend is included under `packages/web/` with live monitorin
 | Styling | Tailwind CSS |
 | Language | TypeScript |
 
+## MCP Server
+
+The bot includes a built-in [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server that lets AI assistants (Claude, Copilot, Cursor, etc.) query PumpFun on-chain data conversationally.
+
+### MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_token_info` | Token metadata, market cap, bonding curve progress, flags |
+| `get_token_holders` | Top holders with concentration metrics |
+| `get_token_trades` | Recent trade activity — volume, buy/sell counts |
+| `get_pool_liquidity` | PumpSwap AMM pool liquidity for graduated tokens |
+| `get_bundle_info` | Bundle detection (scam indicator) |
+| `get_creator_profile` | Creator launch history, scam estimate, recent coins |
+| `get_github_user` | GitHub profile by username or numeric ID |
+| `get_claim_history` | Claim status for a GitHub user — count, mints claimed |
+| `get_sol_price` | Current SOL/USD price |
+
+### Usage: Stdio Transport (Claude Desktop / Cursor / VS Code)
+
+Add to your MCP client config (e.g. `claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "pumpfun": {
+      "command": "npx",
+      "args": ["pumpfun-claims-bot"]
+    }
+  }
+}
+```
+
+Or run from source:
+
+```bash
+# Development (tsx)
+npm run mcp:dev
+
+# Production (compiled)
+npm run build && npm run mcp
+```
+
+### Usage: Streamable HTTP Transport (Embedded)
+
+Run alongside the main bot by setting `MCP_ENABLED=true`:
+
+```bash
+MCP_ENABLED=true MCP_PORT=3001 npm run dev
+```
+
+The MCP endpoint is available at `POST /mcp` on the configured port. Clients connect using the Streamable HTTP transport.
+
+### Example Queries
+
+Once connected, ask your AI assistant:
+
+- *"Look up token info for mint address 7xKXt...p3Bz"*
+- *"Has GitHub user 12345 ever claimed PumpFun fees?"*
+- *"Who are the top holders of this token?"*
+- *"Check if this token launch was bundled"*
+- *"What's the current SOL price?"*
+
 ## Health Check API
 
 The bot exposes an HTTP health check server for Railway / Docker probes.
@@ -567,15 +636,29 @@ Set `LOG_LEVEL=debug` — all events are logged to stdout regardless of whether 
 | **Frontend** | React 18 + Vite 5 + Tailwind CSS |
 | **Testing** | Vitest |
 | **Container** | Docker (multi-stage Alpine, non-root) |
+| **MCP** | `@modelcontextprotocol/sdk` (Streamable HTTP + stdio) |
 | **Hosting** | Railway (auto-deploy from GitHub) |
-| **Dependencies** | 4 production, 4 dev — intentionally minimal |
+| **Dependencies** | 6 production, 4 dev — intentionally minimal |
 
 ## Contributing
 
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
 1. Fork the repo
 2. Create a feature branch (`git checkout -b feat/my-feature`)
-3. Run tests (`npm test`) and type-check (`npm run typecheck`)
-4. Commit with a descriptive message
-5. Open a Pull Request
+3. Run tests (`npm test`) and typecheck (`npm run typecheck`)
+4. Open a Pull Request
 
-Please ensure all tests pass and TypeScript compiles without errors before submitting.
+## Security
+
+Found a vulnerability? Please report it responsibly — see [SECURITY.md](SECURITY.md).
+
+## License
+
+[MIT](LICENSE) — free for personal and commercial use.
+
+---
+
+<p align="center">
+  <sub>Built with ❤️ for the PumpFun community</sub>
+</p>

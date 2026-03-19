@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /**
  * PumpFun Claims Bot — Standalone MCP Server (stdio)
  *
