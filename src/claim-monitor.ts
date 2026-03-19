@@ -178,6 +178,61 @@ export class ClaimMonitor {
         }
     }
 
+    /**
+     * Returns true if the given recipient wallet has prior ClaimSocialFeePda
+     * transactions on any token's PDA — not just the current one.
+     * This catches the cross-PDA case where a GitHub user already claimed fees
+     * on one token but the current event is for a different (fresh) token PDA.
+     * Fetches the last few transactions for the wallet and checks log messages
+     * for the ClaimSocialFeePda instruction marker.
+     * On RPC error, returns false (don't block posting — other guards exist).
+     */
+    async walletHasPriorSocialFeeClaims(recipientWallet: string, beforeSig: string): Promise<boolean> {
+        try {
+            const walletPubkey = new PublicKey(recipientWallet);
+            const sigs = await this.rpc.withFallback((conn) =>
+                conn.getSignaturesForAddress(walletPubkey, { limit: 50, before: beforeSig }),
+            );
+            if (sigs.length === 0) return false;
+
+            for (const sigInfo of sigs) {
+                const tx = await this.rpc.withFallback((conn) =>
+                    conn.getTransaction(sigInfo.signature, {
+                        maxSupportedTransactionVersion: 0,
+                        commitment: 'confirmed',
+                    }),
+                );
+                if (!tx?.meta?.logMessages) continue;
+                if (tx.meta.logMessages.some((l) => l.includes('Instruction: ClaimSocialFeePda'))) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (err) {
+            log.warn('walletHasPriorSocialFeeClaims: RPC error for %s: %s', recipientWallet.slice(0, 8), err);
+            return false;
+        }
+    }
+
+    /**
+     * Returns true if the given PDA address has ANY transactions at all.
+     * Used to check whether a user has claimed from a different PDA (different token)
+     * in a prior session, when local persistence was lost but we still know about
+     * their other PDA addresses from persisted github-user-pdas.json.
+     */
+    async pdaHasAnyTransactions(pdaAddress: string): Promise<boolean> {
+        try {
+            const pubkey = new PublicKey(pdaAddress);
+            const sigs = await this.rpc.withFallback((conn) =>
+                conn.getSignaturesForAddress(pubkey, { limit: 1 }),
+            );
+            return sigs.length > 0;
+        } catch (err) {
+            log.warn('pdaHasAnyTransactions: RPC error for %s: %s', pdaAddress.slice(0, 8), err);
+            return true; // conservative — do NOT post if we can't verify
+        }
+    }
+
     async start(): Promise<void> {
         if (this.isRunning) return;
         this.isRunning = true;
@@ -459,14 +514,21 @@ export class ClaimMonitor {
                 if (event) {
                     // On-demand mint resolution: when the SocialFeeIndex didn't
                     // have this PDA at claim time (e.g. token created before bot
-                    // started and bootstrap is disabled), try to fetch the mint
-                    // from the RPC now so the CA appears in the post.
+                    // started and bootstrap is disabled), try to fetch ALL mints
+                    // from the RPC so multi-candidate disambiguation can run.
                     if (event.claimType === 'claim_social_fee_pda' && !event.tokenMint && event.socialFeePda) {
-                        const resolved = await this.socialFeeIndex.resolveFromChain(event.socialFeePda, this.rpc);
-                        if (resolved) {
-                            event.tokenMint = resolved;
+                        await this.socialFeeIndex.resolveFromChain(event.socialFeePda, this.rpc);
+                        // resolveFromChain may have added multiple mints — re-read all candidates
+                        const allCandidates = this.socialFeeIndex.lookupAll(event.socialFeePda);
+                        if (allCandidates.length === 1) {
+                            event.tokenMint = allCandidates[0]!;
                             log.info('SocialFeeIndex: on-demand resolved mint %s for PDA %s',
-                                resolved.slice(0, 8), event.socialFeePda.slice(0, 8));
+                                allCandidates[0]!.slice(0, 8), event.socialFeePda.slice(0, 8));
+                        } else if (allCandidates.length > 1) {
+                            event.allCandidateMints = allCandidates;
+                            event.tokenMint = allCandidates[0]!;
+                            log.info('SocialFeeIndex: on-demand resolved %d mints for PDA %s — pipeline will disambiguate',
+                                allCandidates.length, event.socialFeePda.slice(0, 8));
                         } else {
                             log.warn('SocialFeeIndex: could not resolve mint for PDA %s — claim will post without CA',
                                 event.socialFeePda.slice(0, 8));

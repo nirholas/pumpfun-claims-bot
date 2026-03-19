@@ -352,16 +352,19 @@ export class SocialFeeIndex {
             ) as unknown as Array<{ pubkey: PublicKey; account: { data: Buffer } }>;
 
             if (accounts.length > 0) {
-                const data = Buffer.isBuffer(accounts[0]!.account.data)
-                    ? accounts[0]!.account.data
-                    : Buffer.from(accounts[0]!.account.data as Uint8Array);
-                if (data.length >= 43) {
-                    const mint = readPubkey(data, 11);
-                    if (mint) {
-                        this.addMapping(address, mint);
-                        log.debug('SocialFeeIndex: on-demand resolved %s → mint %s (GPA)', address.slice(0, 8), mint.slice(0, 8));
-                        return mint;
+                let added = 0;
+                for (const acct of accounts) {
+                    const data = Buffer.isBuffer(acct.account.data)
+                        ? acct.account.data
+                        : Buffer.from(acct.account.data as Uint8Array);
+                    if (data.length >= 43) {
+                        const mint = readPubkey(data, 11);
+                        if (mint) { this.addMapping(address, mint); added++; }
                     }
+                }
+                if (added > 0) {
+                    log.debug('SocialFeeIndex: on-demand resolved %s → %d mint(s) (GPA)', address.slice(0, 8), added);
+                    return this.lookup(address); // undefined when >1 mint — caller uses lookupAll
                 }
             }
         } catch (err) {

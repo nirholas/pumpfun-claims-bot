@@ -15,7 +15,7 @@ import { Bot, type BotError } from 'grammy';
 import { loadConfig } from './config.js';
 import { ClaimMonitor } from './claim-monitor.js';
 import { EventMonitor } from './event-monitor.js';
-import { hasGithubUserClaimed, markGithubUserClaimed, incrementGithubClaimCount, getGithubUserClaimedMints, loadPersistedClaims, flushPersistedClaims } from './claim-tracker.js';
+import { hasGithubUserClaimed, markGithubUserClaimed, incrementGithubClaimCount, getGithubUserClaimedMints, loadPersistedClaims, flushPersistedClaims, addGithubUserPda, getGithubUserPdas } from './claim-tracker.js';
 import { fetchTokenInfo, fetchTopHolders, fetchTokenTrades, fetchDevWalletInfo, fetchSolUsdPrice, fetchPoolLiquidity, fetchBundleInfo, fetchCreatorProfile, fetchSameNameTokens } from './pump-client.js';
 import { fetchGitHubUserById, fetchRepoFromUrls } from './github-client.js';
 import { fetchXProfile } from './x-client.js';
@@ -217,7 +217,48 @@ async function main(): Promise<void> {
                         if (pdaKey) markGithubUserClaimed(event.githubUserId!, pdaKey);
                         for (const m of allMints) markGithubUserClaimed(event.githubUserId!, m);
                     } else {
-                        isFirstClaim = true;
+                        // Step 4a: Cross-PDA knowledge-base check.
+                        // If we've seen this user claim from a different PDA in a prior session
+                        // (persisted in github-user-pdas.json), check whether that PDA has
+                        // any transactions at all — if so, the user has claimed before.
+                        const knownOtherPdas = getGithubUserPdas(event.githubUserId!).filter(
+                            (p) => p !== event.socialFeePda,
+                        );
+                        let claimedViaKnownPda = false;
+                        for (const otherPda of knownOtherPdas) {
+                            if (await claimMonitor.pdaHasAnyTransactions(otherPda)) {
+                                claimedViaKnownPda = true;
+                                log.warn('Claim by %s: current PDA %s is fresh but known other PDA %s has txs — treating as repeat',
+                                    event.githubUserId, event.socialFeePda.slice(0, 8), otherPda.slice(0, 8));
+                                break;
+                            }
+                        }
+                        if (claimedViaKnownPda) {
+                            isFirstClaim = false;
+                            markGithubUserClaimed(event.githubUserId!);
+                            if (pdaKey) markGithubUserClaimed(event.githubUserId!, pdaKey);
+                            for (const m of allMints) markGithubUserClaimed(event.githubUserId!, m);
+                        } else if (event.recipientWallet) {
+                            // Step 4b: Wallet history check — scan a broader window of the
+                            // recipient wallet's transactions for any prior ClaimSocialFeePda.
+                            // Limit raised to 50 so users with lots of non-claim activity
+                            // (trades, transfers) are still caught.
+                            const walletHasPrior = await claimMonitor.walletHasPriorSocialFeeClaims(
+                                event.recipientWallet, event.txSignature,
+                            );
+                            if (walletHasPrior) {
+                                isFirstClaim = false;
+                                log.warn('Claim by %s on %s: PDA fresh but wallet %s has prior social fee claims — treating as repeat',
+                                    event.githubUserId, mint.slice(0, 8), event.recipientWallet.slice(0, 8));
+                                markGithubUserClaimed(event.githubUserId!);
+                                if (pdaKey) markGithubUserClaimed(event.githubUserId!, pdaKey);
+                                for (const m of allMints) markGithubUserClaimed(event.githubUserId!, m);
+                            } else {
+                                isFirstClaim = true;
+                            }
+                        } else {
+                            isFirstClaim = true;
+                        }
                     }
                 } else {
                     isFirstClaim = lifetimeMatchesAmount;
@@ -229,6 +270,9 @@ async function main(): Promise<void> {
                 isFirstClaim = false;
                 log.warn('Skipping claim by %s on %s — no on-chain lifetime data (amount=%d), cannot verify first-claim', event.githubUserId, mint.slice(0, 8), event.amountLamports);
             }
+
+            // Always record this user's PDA address so future restarts can use it for cross-PDA checks.
+            if (event.socialFeePda) addGithubUserPda(event.githubUserId!, event.socialFeePda);
 
             log.info('Claim check: user=%s mint=%s first=%s lifetime=%s claim=%s localKnown=%s',
                 event.githubUserId, mint.slice(0, 8),

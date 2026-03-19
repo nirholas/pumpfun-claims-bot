@@ -46,6 +46,13 @@ const githubUserTokenClaims = new Set<string>();
 /** Tracks how many times each GitHub user ID has claimed (persisted) */
 const githubUserClaimCounts = new Map<string, number>();
 
+/**
+ * Tracks all PDA addresses ever seen for a GitHub user ID.
+ * Key: githubUserId, Value: Set of PDA addresses.
+ * Persisted so cross-PDA repeat detection survives restarts.
+ */
+const githubUserPdas = new Map<string, Set<string>>();
+
 /** Max entries before eviction of oldest */
 const MAX_ENTRIES = 50_000;
 
@@ -57,6 +64,7 @@ const WALLET_FIRST_CLAIMS_FILE = join(DATA_DIR, 'wallet-first-claims.json');
 const GITHUB_FIRST_CLAIMS_FILE = join(DATA_DIR, 'github-first-claims.json');
 const GITHUB_USER_TOKEN_CLAIMS_FILE = join(DATA_DIR, 'github-user-token-claims.json');
 const GITHUB_CLAIM_COUNTS_FILE = join(DATA_DIR, 'github-claim-counts.json');
+const GITHUB_USER_PDAS_FILE = join(DATA_DIR, 'github-user-pdas.json');
 const SAVE_DEBOUNCE_MS = 5_000;
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -117,6 +125,20 @@ export function loadPersistedClaims(): void {
                 log.info('Loaded %d persisted GitHub claim counts', githubUserClaimCounts.size);
             }
         }
+        if (existsSync(GITHUB_USER_PDAS_FILE)) {
+            const raw = readFileSync(GITHUB_USER_PDAS_FILE, 'utf8');
+            const pdaMap: unknown = JSON.parse(raw);
+            if (pdaMap && typeof pdaMap === 'object') {
+                for (const [userId, pdas] of Object.entries(pdaMap)) {
+                    if (Array.isArray(pdas)) {
+                        const set = new Set<string>();
+                        for (const p of pdas) { if (typeof p === 'string') set.add(p); }
+                        if (set.size > 0) githubUserPdas.set(userId, set);
+                    }
+                }
+                log.info('Loaded PDA history for %d GitHub users', githubUserPdas.size);
+            }
+        }
     } catch (err) {
         log.warn('Failed to load persisted claims: %s', err);
     }
@@ -148,7 +170,11 @@ function doSave(): void {
         for (const [k, v] of githubUserClaimCounts) countsObj[k] = v;
         writeFileSync(GITHUB_CLAIM_COUNTS_FILE, JSON.stringify(countsObj), 'utf8');
 
-        log.debug('Persisted %d first-claim tokens + %d wallets + %d GitHub users + %d user-token pairs to disk', toSave.length, walletToSave.length, ghToSave.length, gutToSave.length);
+        const pdasObj: Record<string, string[]> = {};
+        for (const [userId, pdaSet] of githubUserPdas) pdasObj[userId] = [...pdaSet];
+        writeFileSync(GITHUB_USER_PDAS_FILE, JSON.stringify(pdasObj), 'utf8');
+
+        log.debug('Persisted %d first-claim tokens + %d wallets + %d GitHub users + %d user-token pairs + %d user-PDA mappings to disk', toSave.length, walletToSave.length, ghToSave.length, gutToSave.length, githubUserPdas.size);
     } catch (err) {
         log.warn('Failed to persist claims: %s', err);
     }
@@ -344,6 +370,28 @@ export function incrementGithubClaimCount(githubUserId: string, mint?: string): 
 export function getGithubClaimCount(githubUserId: string, mint?: string): number {
     const key = mint ? `${githubUserId}:${mint}` : githubUserId;
     return githubUserClaimCounts.get(key) ?? 0;
+}
+
+/**
+ * Record that a GitHub user has a social fee PDA address.
+ * Call this for EVERY claim_social_fee_pda event (first or repeat) so the
+ * mapping accumulates over time and survives across sessions when storage persists.
+ */
+export function addGithubUserPda(githubUserId: string, pdaAddress: string): void {
+    let set = githubUserPdas.get(githubUserId);
+    if (!set) {
+        set = new Set();
+        githubUserPdas.set(githubUserId, set);
+    }
+    if (!set.has(pdaAddress)) {
+        set.add(pdaAddress);
+        scheduleSave();
+    }
+}
+
+/** Return all PDA addresses ever seen for a GitHub user ID. */
+export function getGithubUserPdas(githubUserId: string): string[] {
+    return [...(githubUserPdas.get(githubUserId) ?? [])];
 }
 
 /** Return all mints that a GitHub user has previously claimed fees from. */
