@@ -23,6 +23,7 @@ import { formatGitHubClaimFeed, formatCreatorClaimFeed, formatGraduationFeed, sa
 import type { ClaimFeedContext, CreatorClaimContext } from './formatters.js';
 import { log, setLogLevel } from './logger.js';
 import { startHealthServer, stopHealthServer } from './health.js';
+import { startMcpHttpServer } from './mcp-server.js';
 import { maskUrl } from './rpc-fallback.js';
 import type { FeeClaimEvent, GraduationEvent } from './types.js';
 
@@ -423,12 +424,20 @@ async function main(): Promise<void> {
         }),
     });
 
+    // ── MCP server ──────────────────────────────────────────────────
+    let mcpClose: (() => Promise<void>) | null = null;
+    if (config.mcp.enabled) {
+        const mcpServer = startMcpHttpServer(config.mcp.port);
+        mcpClose = mcpServer.close;
+    }
+
     // ── Graceful shutdown ────────────────────────────────────────────
     const shutdown = () => {
         log.info('Shutting down...');
         claimMonitor?.stop();
         eventMonitor?.stop();
         stopHealthServer();
+        mcpClose?.();
         process.exit(0);
     };
 

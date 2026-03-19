@@ -39,6 +39,11 @@ export interface ChannelBotConfig {
         gmgn: string;
         padre: string;
     };
+    /** MCP server settings */
+    mcp: {
+        enabled: boolean;
+        port: number;
+    };
 }
 
 export function loadConfig(): ChannelBotConfig {
@@ -112,11 +117,17 @@ export function loadConfig(): ChannelBotConfig {
         padre: process.env.PADRE_REF  ?? '',
     };
 
+    const mcp = {
+        enabled: (process.env.MCP_ENABLED || 'false').toLowerCase() === 'true',
+        port: Number.parseInt(process.env.MCP_PORT || '3001', 10),
+    };
+
     return {
         affiliates,
         channelId,
         feed,
         logLevel,
+        mcp,
         pollIntervalSeconds,
         requireGithub,
         solanaRpcUrl,

@@ -1,0 +1,17 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "PumpKit",
+  "name_for_model": "pumpkit",
+  "description_for_human": "Open-source TypeScript framework for real-time PumpFun monitoring on Solana.",
+  "description_for_model": "PumpKit is an open-source TypeScript framework that monitors pump.fun on-chain activity on the Solana blockchain in real time. It tracks fee claims, whale trades, token launches, graduations, CTO events, and fee distributions. It provides Telegram bot alerts, webhook integrations (Discord, Slack), REST API, SSE streaming, and a live web dashboard. It consists of 5 npm packages: @pumpkit/core, @pumpkit/monitor, @pumpkit/channel, @pumpkit/claim, @pumpkit/tracker.",
+  "auth": {
+    "type": "none"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://pumpkit.dev/openapi.json"
+  },
+  "logo_url": "https://pumpkit.dev/favicon.svg",
+  "contact_email": "nirholas@users.noreply.github.com",
+  "legal_info_url": "https://github.com/nirholas/pumpkit/blob/main/LICENSE"
+}
