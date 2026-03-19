@@ -72,6 +72,18 @@ async function main(): Promise<void> {
         throw new Error('Unreachable');
     }
 
+    /**
+     * Wraps a promise so that an unexpected rejection becomes null instead of
+     * crashing the entire enrichment batch. All fetch helpers already return
+     * null on expected failures; this is a last-resort safety net.
+     */
+    function settle<T>(p: Promise<T>): Promise<T | null> {
+        return p.catch((err: unknown) => {
+            log.warn('Enrichment promise rejected: %s', err);
+            return null;
+        });
+    }
+
     /** Send a message to the channel. Throws on failure. */
     async function postToChannel(message: string): Promise<void> {
         const safe = sanitiseHtml(message);
@@ -228,22 +240,23 @@ async function main(): Promise<void> {
                 return;
             }
 
-            // Second wave: depends on first-wave results
+            // Second wave: depends on first-wave results.
+            // settle() ensures one failing enrichment doesn't drop the whole batch.
             const [xProfile, repoInfo, creatorProfile, holders, trades, liquidity, bundle, sameNameTokens] = await Promise.all([
-                githubUser?.twitterUsername
+                settle(githubUser?.twitterUsername
                     ? fetchXProfile(githubUser.twitterUsername)
-                    : Promise.resolve(null),
-                tokenInfo?.githubUrls?.length
+                    : Promise.resolve(null)),
+                settle(tokenInfo?.githubUrls?.length
                     ? fetchRepoFromUrls(tokenInfo.githubUrls)
-                    : Promise.resolve(null),
-                tokenInfo?.creator
+                    : Promise.resolve(null)),
+                settle(tokenInfo?.creator
                     ? fetchCreatorProfile(tokenInfo.creator)
-                    : Promise.resolve(null),
-                mint ? fetchTopHolders(mint) : Promise.resolve(null),
-                mint ? fetchTokenTrades(mint) : Promise.resolve(null),
-                mint && tokenInfo ? fetchPoolLiquidity(mint, tokenInfo.usdMarketCap) : Promise.resolve(null),
-                mint ? fetchBundleInfo(mint) : Promise.resolve(null),
-                tokenInfo ? fetchSameNameTokens(tokenInfo.name, tokenInfo.symbol, mint) : Promise.resolve([]),
+                    : Promise.resolve(null)),
+                settle(mint ? fetchTopHolders(mint) : Promise.resolve(null)),
+                settle(mint ? fetchTokenTrades(mint) : Promise.resolve(null)),
+                settle(mint && tokenInfo ? fetchPoolLiquidity(mint, tokenInfo.usdMarketCap) : Promise.resolve(null)),
+                settle(mint ? fetchBundleInfo(mint) : Promise.resolve(null)),
+                settle(tokenInfo ? fetchSameNameTokens(tokenInfo.name, tokenInfo.symbol, mint) : Promise.resolve([])),
             ]);
             // Third wave: dev wallet needs RPC + creator address
             const devWallet = tokenInfo?.creator
@@ -361,12 +374,12 @@ async function main(): Promise<void> {
                     ]);
 
                     const [creator, holders, trades, devWallet, liquidity, bundle] = await Promise.all([
-                        token?.creator ? fetchCreatorProfile(token.creator) : Promise.resolve(null),
-                        fetchTopHolders(event.mintAddress),
-                        fetchTokenTrades(event.mintAddress),
-                        token?.creator ? fetchDevWalletInfo(token.creator, event.mintAddress, config.solanaRpcUrl) : Promise.resolve(null),
-                        fetchPoolLiquidity(event.mintAddress, token?.usdMarketCap ?? 0),
-                        fetchBundleInfo(event.mintAddress),
+                        settle(token?.creator ? fetchCreatorProfile(token.creator) : Promise.resolve(null)),
+                        settle(fetchTopHolders(event.mintAddress)),
+                        settle(fetchTokenTrades(event.mintAddress)),
+                        settle(token?.creator ? fetchDevWalletInfo(token.creator, event.mintAddress, config.solanaRpcUrl) : Promise.resolve(null)),
+                        settle(fetchPoolLiquidity(event.mintAddress, token?.usdMarketCap ?? 0)),
+                        settle(fetchBundleInfo(event.mintAddress)),
                     ]);
 
                     // Fetch X profile if token has a Twitter link

@@ -1,0 +1,26 @@
+{
+  "name": "pumpfun-leaderboard-bot",
+  "version": "1.0.0",
+  "description": "Telegram leaderboard bot ranking GitHub developers by PumpFun social fee earnings",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "node --env-file=.env --import tsx/esm src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.98.0",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.4.7",
+    "grammy": "^1.35.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
