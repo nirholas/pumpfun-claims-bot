@@ -159,18 +159,36 @@ export class ClaimMonitor {
     }
 
     /**
-     * Returns true if the given social fee PDA has any transactions BEFORE
+     * Returns true if the given social fee PDA has any CLAIM transactions BEFORE
      * the specified signature. Used to verify that a claim with lifetime==amount
-     * on-chain is genuinely the first-ever transaction on this PDA (not just a
-     * parsing artifact or cross-program history gap).
+     * on-chain is genuinely the first-ever claim on this PDA.
+     *
+     * Only counts transactions containing the ClaimSocialFeePda instruction —
+     * ignores PDA setup transactions (CreateFeeSharingConfig, UpdateFeeShares)
+     * which touch the PDA but are not claims.
      */
     async pdaHasPriorTransactions(pdaAddress: string, beforeSig: string): Promise<boolean> {
         try {
             const pubkey = new PublicKey(pdaAddress);
             const sigs = await this.rpc.withFallback((conn) =>
-                conn.getSignaturesForAddress(pubkey, { limit: 1, before: beforeSig }),
+                conn.getSignaturesForAddress(pubkey, { limit: 5, before: beforeSig }),
             );
-            return sigs.length > 0;
+            if (sigs.length === 0) return false;
+
+            for (const sigInfo of sigs) {
+                if (sigInfo.err) continue;
+                const tx = await this.rpc.withFallback((conn) =>
+                    conn.getTransaction(sigInfo.signature, {
+                        maxSupportedTransactionVersion: 0,
+                        commitment: 'confirmed',
+                    }),
+                );
+                if (!tx?.meta?.logMessages) continue;
+                if (tx.meta.logMessages.some((l) => l.includes('Instruction: ClaimSocialFeePda'))) {
+                    return true;
+                }
+            }
+            return false;
         } catch (err) {
             // On RPC error, err on the side of caution — do NOT post
             log.warn('pdaHasPriorTransactions: RPC error for %s: %s', pdaAddress.slice(0, 8), err);
