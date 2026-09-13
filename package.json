@@ -1,6 +1,6 @@
 {
   "name": "pumpfun-claims-bot",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "mcpName": "io.github.nirholas/pumpfun-claims-bot",
   "description": "PumpFun on-chain intelligence — Telegram feed + MCP server for AI assistants. Query token data, GitHub social fee claims, creator profiles, and more.",
   "type": "module",

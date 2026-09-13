@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-09-13
+
+### Changed
+
+- Link the focused `nirholas/pumpfun-github-claims` companion source from the README and explain how its scope relates to this broader toolkit.
+- Align the MCP server's reported version and registry descriptor with the npm package version.
+- Preserve the existing claim behavior; the per-coin attribution work remains tracked in the companion repository.
+
+### Fixed
+
+- Route diagnostics to stderr in MCP stdio mode so startup and enrichment logs cannot corrupt the JSON protocol stream. Add a CLI initialization and tool-list regression test.
+
 ## [Unreleased]
 
 ### Changed

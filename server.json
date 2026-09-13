@@ -7,14 +7,14 @@
     "url": "https://github.com/nirholas/pumpfun-claims-bot",
     "source": "github"
   },
-  "version": "1.0.1",
+  "version": "1.0.5",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "pumpfun-claims-bot",
       "mcpName": "io.github.nirholas/pumpfun-claims-bot",
-      "version": "1.0.1",
+      "version": "1.0.5",
       "transport": {
         "type": "stdio"
       },

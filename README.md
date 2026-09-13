@@ -684,7 +684,7 @@ The bot exposes an HTTP health check server for Railway / Docker probes.
 
 ## Testing
 
-The project uses **Vitest**: 203 tests across 11 suites, all green on `npm test`.
+The project uses **Vitest**: 204 tests across 12 suites, all green on `npm test`.
 
 ```bash
 # Run all tests
@@ -701,6 +701,7 @@ Every suite lives in `src/__tests__/` (plus `fixtures.ts`, shared sample data).
 | Suite | File | Coverage |
 |-------|------|----------|
 | Claim Tracker | `claim-tracker.test.ts` | First-claim detection, persistence, counters, lifetime totals |
+| MCP Stdio | `mcp-stdio.test.ts` | CLI initialization, tool discovery, release version, and clean protocol output |
 | Claim Routing | `claim-routing.test.ts` | Which claims are posted, skipped, or routed to which feed |
 | Credibility | `credibility.test.ts` | Deterministic 0-100 scoring, per-factor attribution, tier bounds |
 | Dev Reputation | `dev-reputation.test.ts` | Persistent per-developer track record and averages |

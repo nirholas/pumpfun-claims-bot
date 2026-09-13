@@ -16,7 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { z } from 'zod';
 
-import { log } from './logger.js';
+import { log, setLogOutput } from './logger.js';
 import { fetchTokenInfo, fetchTopHolders, fetchTokenTrades, fetchCreatorProfile, fetchSolUsdPrice, fetchPoolLiquidity, fetchBundleInfo } from './pump-client.js';
 import { fetchGitHubUserById, fetchGitHubUser } from './github-client.js';
 import { getGithubClaimCount, getGithubUserClaimedMints, hasGithubUserClaimed } from './claim-tracker.js';
@@ -26,7 +26,7 @@ import { getGithubClaimCount, getGithubUserClaimedMints, hasGithubUserClaimed } 
 function createMcpServer(): McpServer {
     const mcp = new McpServer({
         name: 'pumpfun-claims-bot',
-        version: '1.0.0',
+        version: '1.0.5',
     }, {
         capabilities: {
             tools: {},
@@ -292,6 +292,7 @@ export function startMcpHttpServer(port: number): { server: Server; close: () =>
  * This takes over stdin/stdout, so only use when running as a standalone MCP server.
  */
 export async function startMcpStdioServer(): Promise<void> {
+    setLogOutput('stderr');
     const mcp = createMcpServer();
     const transport = new StdioServerTransport();
     await mcp.connect(transport);
