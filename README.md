@@ -28,6 +28,17 @@
 
 > **Looking for interactive monitoring?** The [telegram-bot](https://github.com/nirholas/telegram-bot) supports watch management, group chats, REST API, SSE streaming, and webhooks. Use this channel-bot for simple broadcast-only channels.
 
+## Related Source
+
+[**Pump.fun GitHub Claims — `nirholas/pumpfun-github-claims`**](https://github.com/nirholas/pumpfun-github-claims)
+is a focused companion repository for the [@pumpfunclaims](https://t.me/pumpfunclaims)
+feed. It provides standalone bot source and documentation for first reward
+claims per GitHub developer and coin, with previous claimed coins as context.
+Its [implementation status](https://github.com/nirholas/pumpfun-github-claims/blob/main/docs/implementation-status.md)
+tracks the remaining coin-attribution work. This repository offers the broader
+toolkit, including web dashboards, an MCP server, credibility scoring and
+developer reputation tracking. Both repositories remain available as sources.
+
 ## Features
 
 ### Feed Types
