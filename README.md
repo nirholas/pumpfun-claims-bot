@@ -41,6 +41,26 @@ developer reputation tracking. Both repositories remain available as sources.
 
 ## Features
 
+## What a GitHub claim actually proves
+
+A claim card starts with a real on-chain withdrawal from a Pump.fun GitHub
+social-fee account. That is useful evidence, but it is not automatically proof
+that the GitHub user created, owns, or endorses a coin. Token metadata is
+user-supplied, lookalike accounts exist, and one social-fee account can be
+shared by several coins.
+
+| Label | Meaning |
+|---|---|
+| **Verified GitHub Fee Claim** | Claiming GitHub user exactly matches the owner of the repository linked in token metadata. |
+| **Creator-Wallet GitHub Fee Claim** | Recipient wallet also created the token, but repository ownership was not established. |
+| **Identity Mismatch** | Claiming username differs from the linked repository owner; treat lookalikes as a red flag. |
+| **Unverified** | Withdrawal is real, but the GitHub-to-coin relationship is not proven. |
+| **Unresolved Pooled** | The fee account maps to multiple coins, so no primary CA or per-coin amount is selected. |
+
+“First-ever” refers to the GitHub fee account, not necessarily the displayed
+coin. Trade buttons are shown only for verified repository or creator-wallet
+relationships. The feed is discovery evidence, never an endorsement.
+
 ### Feed Types
 
 | Feed | Description | Toggle |

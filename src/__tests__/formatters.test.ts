@@ -40,18 +40,19 @@ describe('formatGitHubClaimFeed', () => {
         expect(imageUrl).not.toBeNull();
     });
 
-    it('shows FIRST CREATOR FEE CLAIM badge for first claims', () => {
+    it('shows a verified claim badge for first claims', () => {
         const ctx = makeClaimFeedContext({ isFirstClaim: true, isFake: false });
         const { caption } = formatGitHubClaimFeed(ctx);
 
-        expect(caption).toContain('FIRST CREATOR FEE CLAIM');
+        expect(caption).toContain('VERIFIED GITHUB FEE CLAIM');
+        expect(caption).toContain('First-ever withdrawal observed');
     });
 
-    it('always shows FIRST CREATOR FEE CLAIM badge', () => {
-        const ctx = makeClaimFeedContext();
+    it('does not call a subsequent withdrawal first-ever', () => {
+        const ctx = makeClaimFeedContext({ isFirstClaim: false });
         const { caption } = formatGitHubClaimFeed(ctx);
 
-        expect(caption).toContain('FIRST CREATOR FEE CLAIM');
+        expect(caption).not.toContain('First-ever withdrawal observed');
         expect(caption).not.toContain('FAKE CLAIM');
         expect(caption).not.toContain('REPEAT CLAIM');
     });
@@ -86,7 +87,7 @@ describe('formatGitHubClaimFeed', () => {
         const ctx = makeClaimFeedContext({ repoInfo: makeGitHubRepo() });
         const { caption } = formatGitHubClaimFeed(ctx);
 
-        expect(caption).toContain('Repo Claimed');
+        expect(caption).toContain('Repository in Token Metadata');
         expect(caption).toContain('testdev/pump-token');
         expect(caption).toContain('Stars:');
     });
@@ -180,7 +181,9 @@ describe('formatGitHubClaimFeed', () => {
         });
         const { caption } = formatGitHubClaimFeed(ctx);
 
-        expect(caption).toContain('All Linked Coins');
+        expect(caption).toContain('UNRESOLVED POOLED');
+        expect(caption).toContain('Candidate Coins');
+        expect(caption).not.toContain('Axiom');
     });
 
     it('shows same-name tokens when present', () => {
