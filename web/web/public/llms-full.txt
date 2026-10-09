@@ -44,8 +44,8 @@ Detected when a buy or sell exceeds the configured whale threshold.
 - Configurable whale threshold (default: 1 SOL)
 
 ### Graduation (`graduation`)
-Detected when a token migrates from pump.fun bonding curve to Raydium AMM.
-- Fields: mint, Raydium pool address, migration fee, final market cap, total supply
+Detected when a token completes its pump.fun bonding curve and migrates to the PumpSwap AMM. Since the October 2026 upgrade the curve can complete on a buy (synthetic migration) before `migrate` runs, so the completion and the migration can arrive in separate transactions.
+- Fields: mint, PumpSwap pool address, migration fee, final market cap, total supply
 
 ### Fee Claim (`claim`)
 Detected when a creator claims accrued social fees.
@@ -73,11 +73,11 @@ The shared foundation package.
 - WebSocket subscription for real-time transaction monitoring
 - HTTP polling fallback with configurable interval
 - Automatic RPC endpoint failover (multiple endpoints)
-- Transaction parsing for pump.fun and Raydium program instructions
+- Transaction parsing for pump.fun and PumpSwap program instructions
 
 **Program Decoders**
 - pump.fun program account decoder (token metadata, bonding curve state)
-- Raydium AMM decoder (pool state, migration events)
+- PumpSwap AMM decoder (pool state, migration events)
 
 **Storage**
 - File-based JSON storage (default)

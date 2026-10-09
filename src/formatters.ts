@@ -14,6 +14,7 @@ import type {
     TokenLaunchEvent,
     TradeAlertEvent,
 } from './types.js';
+import { QUOTE_MINT_INFO } from './types.js';
 import type { XProfile } from './x-client.js';
 import { getInfluencerTier, formatFollowerCount, influencerLabel } from './x-client.js';
 import { scoreCredibility, TIER_META, type CredibilityResult } from './credibility.js';
@@ -199,10 +200,10 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
     // ━━ CLAIM STATS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     L.push(`💸 <b>Claim Stats</b>`);
     L.push(`Claim #${ctx.claimNumber ?? 1}`);
-    const claimSol = event.amountSol.toFixed(4);
-    const claimUsd = solUsdPrice > 0 ? ` ($${(event.amountSol * solUsdPrice).toFixed(2)})` : '';
-    L.push(`${claimSol} SOL${claimUsd}`);
-    if (ctx.lifetimeClaimedSol != null && ctx.lifetimeClaimedSol > 0) {
+    L.push(formatClaimAmount(event, solUsdPrice));
+    if (event.quoteMint && event.lifetimeClaimedLamports) {
+        L.push(`Lifetime claims: ${formatQuoteUnits(event.quoteMint, event.lifetimeClaimedLamports)}`);
+    } else if (ctx.lifetimeClaimedSol != null && ctx.lifetimeClaimedSol > 0) {
         const ltUsd = solUsdPrice > 0 ? ` ($${(ctx.lifetimeClaimedSol * solUsdPrice).toFixed(2)})` : '';
         L.push(`Lifetime claims: ${ctx.lifetimeClaimedSol.toFixed(4)} SOL${ltUsd}`);
     }
@@ -585,9 +586,7 @@ export function formatCreatorClaimFeed(ctx: CreatorClaimContext): { imageUrl: st
 
     // ━━ AMOUNT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     L.push('');
-    const claimSol = event.amountSol.toFixed(4);
-    const claimUsd = solUsdPrice > 0 ? ` ($${(event.amountSol * solUsdPrice).toFixed(2)})` : '';
-    L.push(`🏦 <b>${claimSol} SOL</b>${claimUsd}`);
+    L.push(`🏦 <b>${formatClaimAmount(event, solUsdPrice)}</b>`);
     L.push(`  ↳ ${esc(event.claimLabel)}`);
 
     // ━━ CREATOR PROFILE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -919,6 +918,13 @@ export function formatWhaleFeed(
     lines.push('');
 
     lines.push(`${emoji}  <b>${event.solAmount.toFixed(2)} SOL</b>`);
+    if (event.completedCurve) {
+        // Synthetic migration: the buy completed the curve, then kept buying from the pool part.
+        const split = event.postCompleteSolAmount
+            ? ` (${(event.curveSolAmount ?? 0).toFixed(2)} SOL on the curve + ${event.postCompleteSolAmount.toFixed(2)} SOL after it)`
+            : '';
+        lines.push(`🎓  Completed the bonding curve${split}`);
+    }
 
     const trader = `<a href="https://pump.fun/profile/${event.user}">${shortAddr(event.user)}</a>`;
     lines.push(`👤  Trader: ${trader}`);
@@ -990,6 +996,26 @@ export function formatFeeDistributionFeed(
 // ============================================================================
 // Utilities
 // ============================================================================
+
+/**
+ * A claim amount in its own currency: "1.2345 SOL ($150.20)" for SOL payouts,
+ * "12.50 USDC" for a V2 payout in another quote mint.
+ */
+export function formatClaimAmount(
+    event: Pick<FeeClaimEvent, 'quoteMint' | 'amountSol' | 'amountLamports'>,
+    solUsdPrice: number,
+): string {
+    if (event.quoteMint) return formatQuoteUnits(event.quoteMint, event.amountLamports);
+    const usd = solUsdPrice > 0 ? ` ($${(event.amountSol * solUsdPrice).toFixed(2)})` : '';
+    return `${event.amountSol.toFixed(4)} SOL${usd}`;
+}
+
+/** Base units of a non-SOL quote mint, with its ticker when known. */
+export function formatQuoteUnits(quoteMint: string, baseUnits: number): string {
+    const info = QUOTE_MINT_INFO[quoteMint];
+    if (!info) return `${baseUnits} base units of ${shortAddr(quoteMint)}`;
+    return `${(baseUnits / 10 ** info.decimals).toFixed(2)} ${info.ticker}`;
+}
 
 export function shortAddr(addr: string): string {
     if (!addr || addr.length <= 12) return addr || '???';

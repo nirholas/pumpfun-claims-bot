@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - Pump October 2026 upgrade
+
+### Fixed
+
+- **Claims after the October 2026 Pump/PumpSwap upgrade.** The claim tables now include `collect_creator_fee_v2`, `distribute_creator_fees_v2`, `transfer_creator_fees_to_pump_v2`, `claim_cashback_v2` and `claim_social_fee_pda_v2`. A claim transaction that sweeps first (`sweep_creator_fee`) reports only the claim; a sweep-only transaction is not a claim, and every claim is paid by its own event so two claims in one transaction are never double counted. V2 claims paid in a quote mint such as USDC show in that currency and are kept out of SOL totals.
+- **Length-tolerant event decoding.** Trade, completion, migration, distribution and fee events are decoded in the new IDL field order from the known prefix, ignoring trailing bytes, so both old and new layouts decode. `buy_v3`, `sell_v3`, `buy_exact_quote_in_v3` and `multi_hop_swap` trades are recognised.
+- **Whale buys that complete the curve.** A buy that completes the bonding curve and keeps buying on PumpSwap in the same instruction (synthetic migration) now counts its `PostCompleteBuyEvent` amount in the buyer total.
+- **Social claim lifetime totals.** `SocialFeePdaClaimed.lifetime_claimed` is read in IDL order (after `claimable_before`) instead of being guessed; the leaderboard bot also accepts `claim_social_fee_pda_v2` and keeps non-SOL claims out of its SOL leaderboard.
+
 ## [1.0.5] - 2026-09-13
 
 ### Changed

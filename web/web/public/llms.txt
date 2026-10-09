@@ -13,7 +13,7 @@ PumpKit is a modular, open-source framework built in TypeScript for monitoring p
 - **Fee Claim Monitoring**: Track PumpFun social fee claims per token, including claimer wallet, SOL amount, GitHub handle, and lifetime totals.
 - **Token Launch Detection**: Instant alerts when new tokens are created on pump.fun, with social links, GitHub connections, cashback, and mayhem badges.
 - **Whale Trade Tracking**: Monitor large buys and sells with market cap, bonding curve progress, and creator fee information.
-- **Graduation Alerts**: Know the moment a token migrates from pump.fun to Raydium, with pool address and migration fee.
+- **Graduation Alerts**: Know the moment a token completes its bonding curve and migrates to PumpSwap, with pool address and migration fee. Since the October 2026 upgrade the curve can complete on a buy (synthetic migration) before `migrate` runs.
 - **Fee Distribution Visibility**: See exactly how fees are split across shareholders, including basis point (BPS) breakdowns.
 - **CTO (Community Takeover) Tracking**: Track creator wallet sales and community takeover events.
 - **Live Web Dashboard**: Real-time event feed with filtering, search, and statistics.
@@ -23,7 +23,7 @@ PumpKit is a modular, open-source framework built in TypeScript for monitoring p
 PumpKit is composed of 5 modular npm packages:
 
 ### @pumpkit/core (v0.3.2)
-Shared framework: Grammy-based bot scaffolding, Solana WebSocket/HTTP monitors, program account decoders (pump.fun, Raydium), file-based + SQLite storage, structured logging (pino), health-check server.
+Shared framework: Grammy-based bot scaffolding, Solana WebSocket/HTTP monitors, program account decoders (pump.fun, PumpSwap), file-based + SQLite storage, structured logging (pino), health-check server.
 
 ### @pumpkit/monitor (v1.0.0)
 All-in-one monitor: fee claims, launches, graduations, whale trades, CTO alerts. Includes REST API + SSE streaming. Configurable whale threshold, mayhem filter, webhook support. Railway-ready Docker image.
@@ -42,7 +42,7 @@ Tracks watched wallets and tokens. Alerts on threshold-crossing trades, creator 
 - **Language**: TypeScript (Node.js)
 - **Blockchain**: Solana (Mainnet Beta)
 - **Protocol**: pump.fun (PumpFun)
-- **DEX**: Raydium (graduation target)
+- **DEX**: PumpSwap (graduation target)
 - **Bot Framework**: Grammy (Telegram)
 - **Web**: React + Vite + Tailwind CSS
 - **Streaming**: Server-Sent Events (SSE)
@@ -62,7 +62,7 @@ Tracks watched wallets and tokens. Alerts on threshold-crossing trades, creator 
 ## FAQ
 
 ### What is pump.fun?
-Pump.fun is a Solana-based platform for creating and trading meme tokens with a bonding curve mechanism. Tokens can "graduate" to Raydium once they reach a certain market cap threshold.
+Pump.fun is a Solana-based platform for creating and trading meme tokens with a bonding curve mechanism. Tokens "graduate" to the PumpSwap AMM once the bonding curve completes.
 
 ### What are PumpFun fee claims?
 When tokens are created on pump.fun with a GitHub account linked, the creator earns social fees from trading activity. These fees can be claimed on-chain.

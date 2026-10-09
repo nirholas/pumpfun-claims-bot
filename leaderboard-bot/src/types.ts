@@ -12,6 +12,14 @@ export const PUMP_FEE_PROGRAM_ID = 'pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ'
 export const SOCIAL_FEE_CLAIMED_DISC = '3212c141edd2eaec';
 /** claim_social_fee_pda instruction discriminator */
 export const CLAIM_SOCIAL_FEE_DISC = 'e115fb85a11ec7e2';
+/** claim_social_fee_pda_v2 instruction discriminator (same args, quote_mint at accounts[2]) */
+export const CLAIM_SOCIAL_FEE_V2_DISC = '114df0863abc3595';
+
+/** Quote mints that mean SOL in a V2 SocialFeePdaClaimed event. */
+export const SOL_QUOTE_MINTS: ReadonlySet<string> = new Set([
+    '11111111111111111111111111111111',
+    'So11111111111111111111111111111111111111112',
+]);
 
 // ── Events ────────────────────────────────────────────────────────────────────
 

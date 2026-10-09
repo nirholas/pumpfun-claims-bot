@@ -260,6 +260,22 @@ describe('formatCreatorClaimFeed', () => {
 
         expect(caption).toContain('$250.00');
     });
+
+    it('shows a V2 payout in its own quote currency', () => {
+        const ctx = {
+            event: makeFeeClaimEvent({
+                amountSol: 0,
+                amountLamports: 12_500_000,
+                quoteMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+            }),
+            solUsdPrice: 100,
+            creator: null,
+        };
+        const { caption } = formatCreatorClaimFeed(ctx);
+
+        expect(caption).toContain('12.50 USDC');
+        expect(caption).not.toContain('SOL</b>');
+    });
 });
 
 // ── formatLaunchFeed ─────────────────────────────────────────────────────────

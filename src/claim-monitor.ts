@@ -25,13 +25,12 @@ import {
     CREATE_FEE_SHARING_CONFIG_EVENT_DISC,
     UPDATE_FEE_SHARES_EVENT_DISC,
 } from './social-fee-index.js';
+import { planClaims, type PlannedClaim, type TopLevelInstruction } from './claim-attribution.js';
 import type { FeeClaimEvent, ClaimType } from './types.js';
 import {
-    CLAIM_INSTRUCTIONS,
     PUMP_PROGRAM_ID,
     PUMP_AMM_PROGRAM_ID,
     PUMP_FEE_PROGRAM_ID,
-    type InstructionDef,
 } from './types.js';
 
 // ============================================================================
@@ -582,20 +581,19 @@ export class ClaimMonitor {
             }));
             if (!tx?.meta || tx.meta.err) return;
 
-            const instructions = tx.transaction.message.instructions;
             const timestamp = tx.blockTime ?? Math.floor(Date.now() / 1000);
             const slot = tx.slot;
 
-            // Process all claim instructions (social, creator, distribution — not just social)
-            for (const ix of instructions) {
-                if (!('data' in ix) || !ix.data) continue;
-                const programId = ix.programId.toBase58();
-                const matchedDef = this.matchClaimInstruction(ix.data, programId);
-                if (!matchedDef) continue;
-
-                const event = this.buildClaimEvent(
-                    signature, slot, timestamp, tx, matchedDef, ix,
-                );
+            // One payout per claim instruction, each read from its own event.
+            // Sweeps (curve or pool to creator vault) are never claims and never
+            // income, so a sweep-only transaction plans nothing.
+            const instructions: TopLevelInstruction[] = tx.transaction.message.instructions.map((ix) => ({
+                programId: ix.programId.toBase58(),
+                data: 'data' in ix ? ix.data : undefined,
+                accounts: 'accounts' in ix ? ix.accounts.map((a) => a.toBase58()) : undefined,
+            }));
+            for (const planned of planClaims(instructions, tx.meta.logMessages ?? [])) {
+                const event = this.buildClaimEvent(signature, slot, timestamp, tx, planned);
                 if (event) {
                     // On-demand mint resolution: when the SocialFeeIndex didn't
                     // have this PDA at claim time (e.g. token created before bot
@@ -635,161 +633,37 @@ export class ClaimMonitor {
         }
     }
 
-    private matchClaimInstruction(data: string, programId: string): InstructionDef | undefined {
-        try {
-            const bytes = bs58.decode(data);
-            const disc = Buffer.from(bytes.subarray(0, 8)).toString('hex');
-            return CLAIM_INSTRUCTIONS.find(
-                (def) => def.discriminator === disc && def.programId === programId,
-            );
-        } catch {
-            return undefined;
-        }
-    }
-
     private buildClaimEvent(
         signature: string,
         slot: number,
         timestamp: number,
         tx: import('@solana/web3.js').ParsedTransactionWithMeta,
-        def: InstructionDef,
-        ix: import('@solana/web3.js').ParsedInstruction | import('@solana/web3.js').PartiallyDecodedInstruction,
+        planned: PlannedClaim,
     ): FeeClaimEvent | null {
-        // Find the claimer from account keys
+        const { def, instruction: ix, facts } = planned;
         const accountKeys = tx.transaction.message.accountKeys;
         const signerKey = accountKeys.find((a) => a.signer)?.pubkey?.toBase58();
         if (!signerKey) return null;
 
-        // Extract token mint based on instruction type
-        let tokenMint = '';
-        let githubUserId: string | undefined;
-        let socialPlatform: number | undefined;
-        let recipientWallet: string | undefined;
-        let socialFeePda: string | undefined;
-        let lifetimeClaimedLamports: number | undefined;
+        // distribute_creator_fees names its mint (V1 accounts[0], V2 accounts[1]);
+        // collect_creator_fee, claim_cashback and collect_coin_creator_fee are
+        // wallet-level claims with no mint; claim_social_fee_pda resolves its
+        // mint through the SocialFeeIndex below.
+        let tokenMint = facts.tokenMint ?? '';
+        const social = facts.social;
+        let githubUserId = social?.userId;
+        let socialPlatform = social?.platform;
+        const recipientWallet = social?.recipient;
+        let socialFeePda = social?.socialFeePda;
+        const quoteMint = facts.quoteMint;
+        // Lifetime in the claim's own currency, so it compares with amountLamports.
+        const lifetime = quoteMint ? social?.lifetimeStableClaimed : social?.lifetimeClaimed;
+        const lifetimeClaimedLamports = lifetime !== undefined ? Number(lifetime) : undefined;
 
-        if (def.claimType === 'distribute_creator_fees') {
-            // distribute_creator_fees: accounts[0] = mint
-            if ('accounts' in ix && Array.isArray(ix.accounts) && ix.accounts.length > 0) {
-                tokenMint = ix.accounts[0]!.toBase58();
-            }
-        }
-        // collect_creator_fee, claim_cashback, collect_coin_creator_fee
-        // are wallet-level claims with no token mint — tokenMint stays empty
-        // claim_social_fee_pda: mint is resolved via the SocialFeeIndex below
+        let amountLamports = Number(facts.amount);
 
-        // Parse event data from CPI log lines for amount
-        let amountLamports = 0;
-        const logMessages = tx.meta?.logMessages ?? [];
-        for (const line of logMessages) {
-            if (!line.includes('Program data:')) continue;
-            const b64 = line.split('Program data: ')[1]?.trim();
-            if (!b64) continue;
-            try {
-                const bytes = Buffer.from(b64, 'base64');
-                const disc = Buffer.from(bytes.subarray(0, 8)).toString('hex');
-
-                // DistributeCreatorFeesEvent: disc=a537817004b3ca28
-                // Layout: disc(8) + timestamp(8) + mint(32) + sharingConfig(32) + admin(32) + ...shareholders... + distributed(8)
-                if (disc === 'a537817004b3ca28' && def.claimType === 'distribute_creator_fees') {
-                    // Extract mint from event data (bytes 8+8=16..48)
-                    if (bytes.length >= 48) {
-                        const mintBytes = bytes.subarray(16, 48);
-                        tokenMint = new PublicKey(mintBytes).toBase58();
-                    }
-                    // distributed is the last 8 bytes
-                    if (bytes.length >= 8) {
-                        const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-                        // distributed u64 at the end
-                        amountLamports = Number(view.getBigUint64(bytes.length - 8, true));
-                    }
-                }
-
-                // CollectCreatorFeeEvent: disc=7a027f010ebf0caf
-                // Layout: disc(8) + timestamp(8) + creator(32) + creatorFee(8)
-                if (disc === '7a027f010ebf0caf') {
-                    if (bytes.length >= 56) {
-                        const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-                        amountLamports = Number(view.getBigUint64(48, true));
-                    }
-                }
-
-                // ClaimCashbackEvent: disc=e2d6f62107f293e5
-                // Layout: disc(8) + user(32) + amount(8) + timestamp(8) + totalClaimed(8) + totalCashbackEarned(8)
-                if (disc === 'e2d6f62107f293e5') {
-                    if (bytes.length >= 48) {
-                        const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-                        amountLamports = Number(view.getBigUint64(40, true));
-                    }
-                }
-
-                // CollectCoinCreatorFeeEvent: disc=e8f5c2eeeada3a59
-                // Layout: disc(8) + timestamp(8) + coinCreator(32) + coinCreatorFee(8) + ...
-                if (disc === 'e8f5c2eeeada3a59') {
-                    if (bytes.length >= 56) {
-                        const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-                        amountLamports = Number(view.getBigUint64(48, true));
-                    }
-                }
-
-                // SocialFeePdaClaimed: disc=3212c141edd2eaec
-                // Layout: disc(8) + timestamp(i64=8) + user_id(string: 4-byte LE len + N) + platform(u8) + social_fee_pda(32) + recipient(32) + social_claim_authority(32) + amount_claimed(u64=8) + ...
-                if (disc === '3212c141edd2eaec' && def.claimType === 'claim_social_fee_pda') {
-                    let offset = 16; // skip disc(8) + timestamp(8)
-                    // user_id: Borsh string = 4-byte LE length prefix + UTF-8 bytes
-                    if (bytes.length >= offset + 4) {
-                        const uidLen = bytes.readUInt32LE(offset);
-                        offset += 4;
-                        if (bytes.length >= offset + uidLen) {
-                            githubUserId = Buffer.from(bytes.subarray(offset, offset + uidLen)).toString('utf8');
-                            offset += uidLen;
-                        }
-                    }
-                    // platform: u8
-                    if (bytes.length >= offset + 1) {
-                        socialPlatform = bytes[offset]!;
-                        offset += 1;
-                    }
-                    // social_fee_pda: pubkey(32)
-                    if (bytes.length >= offset + 32) {
-                        socialFeePda = new PublicKey(bytes.subarray(offset, offset + 32)).toBase58();
-                        offset += 32;
-                    }
-                    // recipient: pubkey(32)
-                    if (bytes.length >= offset + 32) {
-                        recipientWallet = new PublicKey(bytes.subarray(offset, offset + 32)).toBase58();
-                        offset += 32;
-                    }
-                    // social_claim_authority: pubkey(32) — skip
-                    offset += 32;
-                    // amount_claimed: u64
-                    if (bytes.length >= offset + 8) {
-                        const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-                        amountLamports = Number(view.getBigUint64(offset, true));
-                        offset += 8;
-                    }
-                    // Next two u64 fields are lifetime_claimed and claimable_before (order uncertain
-                    // across program versions).
-                    // - lifetime_claimed: real lamport total, always ≤ amount_claimed for a first-ever claim
-                    // - claimable_before: Unix timestamp in seconds (~1.74B for 2026), NOT lamports
-                    // Taking Math.max() was wrong: it always returned the timestamp (~1.74B lamports),
-                    // which made every claim < ~1.74 SOL appear to be a repeat claim.
-                    // Fix: take Math.min() — the real lifetime lamports are always < any sane timestamp.
-                    if (bytes.length >= offset + 16) {
-                        const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-                        const fieldA = Number(view.getBigUint64(offset, true));
-                        const fieldB = Number(view.getBigUint64(offset + 8, true));
-                        lifetimeClaimedLamports = Math.min(fieldA, fieldB);
-                    } else if (bytes.length >= offset + 8) {
-                        const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-                        lifetimeClaimedLamports = Number(view.getBigUint64(offset, true));
-                    }
-                }
-            } catch { /* skip unparseable log lines */ }
-        }
-
-        // Fallback: calculate SOL amount from balance changes
-        if (amountLamports === 0) {
+        // Fallback for claims that emitted no payout event: SOL balance change
+        if (amountLamports === 0 && !facts.hasEvent && !quoteMint) {
             const preBalances = tx.meta?.preBalances ?? [];
             const postBalances = tx.meta?.postBalances ?? [];
             const signerIdx = accountKeys.findIndex(
@@ -801,8 +675,8 @@ export class ClaimMonitor {
             }
         }
 
-        // If still no amount, try inner instructions
-        if (amountLamports === 0) {
+        // If still no amount, try inner SOL transfers to the signer
+        if (amountLamports === 0 && !facts.hasEvent && !quoteMint) {
             const innerIxs = tx.meta?.innerInstructions ?? [];
             for (const inner of innerIxs) {
                 for (const innerIx of inner.instructions) {
@@ -825,7 +699,7 @@ export class ClaimMonitor {
             isFake = true;
             // Try to extract user_id & platform from instruction args
             // Anchor ix data: disc(8) + user_id(borsh string: 4-byte len + N) + platform(u8)
-            if ('data' in ix && ix.data && !githubUserId) {
+            if (ix.data && !githubUserId) {
                 try {
                     const ixBytes = bs58.decode(ix.data);
                     if (ixBytes.length > 12) {
@@ -842,9 +716,9 @@ export class ClaimMonitor {
                     }
                 } catch { /* ignore parse errors */ }
             }
-            // Resolve socialFeePda from instruction accounts
-            if ('accounts' in ix && Array.isArray(ix.accounts) && ix.accounts.length >= 2 && !socialFeePda) {
-                socialFeePda = ix.accounts[1]?.toBase58();
+            // social_fee_pda is accounts[1] in both claim_social_fee_pda and _v2
+            if (ix.accounts && ix.accounts.length >= 2 && !socialFeePda) {
+                socialFeePda = ix.accounts[1];
             }
         }
 
@@ -872,7 +746,7 @@ export class ClaimMonitor {
             timestamp,
             claimerWallet: signerKey,
             tokenMint,
-            amountSol: amountLamports / LAMPORTS_PER_SOL,
+            amountSol: quoteMint ? 0 : amountLamports / LAMPORTS_PER_SOL,
             amountLamports,
             claimType: def.claimType,
             isCashback: !def.isCreatorClaim,
@@ -885,6 +759,7 @@ export class ClaimMonitor {
             isFake,
             lifetimeClaimedLamports,
             allCandidateMints,
+            quoteMint,
         };
     }
 

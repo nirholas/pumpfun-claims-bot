@@ -2,12 +2,16 @@
  * PumpFun Channel Bot — Event Monitor
  *
  * Monitors the Pump program for on-chain events:
- *   - Token launches (CreateEvent, CreateV2Event)
- *   - Graduation (CompleteEvent, CompletePumpAmmMigrationEvent)
- *   - Whale trades (TradeEvent above a SOL threshold)
+ *   - Token launches (CreateEvent, emitted by create and create_v2)
+ *   - Graduation (CompleteEvent when the curve completes, which since synthetic
+ *     migration happens inside the completing buy; CompletePumpAmmMigrationEvent
+ *     when migrate later opens the PumpSwap pool)
+ *   - Whale trades (TradeEvent above a SOL threshold, plus the PostCompleteBuyEvent
+ *     pool part of a buy that completed the curve)
  *   - Fee distributions (DistributeCreatorFeesEvent)
  *
- * Events are decoded from "Program data:" log lines (Anchor CPI self-invoke).
+ * Events are decoded from "Program data:" log lines by src/pump-events.ts, which
+ * tolerates both the older, shorter layouts and the October 2026 longer ones.
  * Two modes: WebSocket (real-time) or HTTP polling (fallback).
  */
 
@@ -19,10 +23,21 @@ import {
     type Logs,
     type SignaturesForAddressOptions,
 } from '@solana/web3.js';
-import bs58 from 'bs58';
 
 import type { ChannelBotConfig } from './config.js';
 import { log } from './logger.js';
+import {
+    buyerTradesFromPayloads,
+    decodeCreateEvent,
+    decodeCompleteEvent,
+    decodeDistributeCreatorFeesEvent,
+    decodeMigrationEvent,
+    EVENT_DISCRIMINATORS,
+    eventDiscriminator,
+    isSolQuote,
+    programDataPayloads,
+    type BuyerTrade,
+} from './pump-events.js';
 import { RpcFallback } from './rpc-fallback.js';
 import type {
     FeeDistributionEvent,
@@ -31,20 +46,14 @@ import type {
     TradeAlertEvent,
 } from './types.js';
 import {
-    COMPLETE_EVENT_DISCRIMINATOR,
-    COMPLETE_AMM_MIGRATION_DISCRIMINATOR,
-    CREATE_V2_DISCRIMINATOR,
-    CREATE_DISCRIMINATOR,
     DEFAULT_GRADUATION_SOL_THRESHOLD,
     PUMP_PROGRAM_ID,
-    TRADE_EVENT_DISCRIMINATOR,
 } from './types.js';
 
 // ============================================================================
 // Constants
 // ============================================================================
 
-const DISTRIBUTE_FEES_EVENT_DISCRIMINATOR = 'a537817004b3ca28';
 const MAX_WS_ERRORS = 5;
 const DEFAULT_TOKEN_TOTAL_SUPPLY = 1_000_000_000_000_000;
 const WS_HEARTBEAT_INTERVAL_MS = 60_000;
@@ -189,28 +198,30 @@ export class EventMonitor {
         this.processedSignatures.add(signature);
         this.trimCache();
 
-        for (const line of logLines) {
-            if (!line.includes('Program data:')) continue;
-            const b64 = line.split('Program data: ')[1]?.trim();
-            if (!b64) continue;
-
+        const payloads = programDataPayloads(logLines);
+        for (const bytes of payloads) {
             try {
-                const bytes = Buffer.from(b64, 'base64');
-                if (bytes.length < 8) continue;
-                const disc = Buffer.from(bytes.subarray(0, 8)).toString('hex');
-
-                if (disc === CREATE_V2_DISCRIMINATOR || disc === CREATE_DISCRIMINATOR) {
-                    this.decodeLaunch(bytes, disc, signature);
-                } else if (disc === COMPLETE_EVENT_DISCRIMINATOR || disc === COMPLETE_AMM_MIGRATION_DISCRIMINATOR) {
-                    this.decodeGraduation(bytes, disc, signature, blockTime);
-                } else if (disc === TRADE_EVENT_DISCRIMINATOR) {
-                    this.decodeTrade(bytes, signature);
-                } else if (disc === DISTRIBUTE_FEES_EVENT_DISCRIMINATOR) {
+                const disc = eventDiscriminator(bytes);
+                if (disc === EVENT_DISCRIMINATORS.CreateEvent) {
+                    this.decodeLaunch(bytes, signature);
+                } else if (disc === EVENT_DISCRIMINATORS.CompleteEvent || disc === EVENT_DISCRIMINATORS.CompletePumpAmmMigrationEvent) {
+                    this.decodeGraduation(bytes, signature, blockTime);
+                } else if (disc === EVENT_DISCRIMINATORS.DistributeCreatorFeesEvent) {
                     this.decodeFeeDistribution(bytes, signature);
                 }
             } catch (err) {
                 log.debug('Malformed log line in %s: %s', signature.slice(0, 8), err);
             }
+        }
+
+        // Trades are read as a whole: a completing buy's pool part arrives as a
+        // separate PostCompleteBuyEvent after its TradeEvent and CompleteEvent.
+        try {
+            for (const alert of tradeAlertsFromPayloads(payloads, signature, this.config.whaleThresholdSol)) {
+                this.onWhale(alert);
+            }
+        } catch (err) {
+            log.debug('Trade decode error in %s: %s', signature.slice(0, 8), err);
         }
     }
 
@@ -265,241 +276,72 @@ export class EventMonitor {
 
     // ── Decoders ─────────────────────────────────────────────────────
 
-    private decodeLaunch(bytes: Buffer, disc: string, signature: string): void {
-        try {
-            // CreateEvent layout after 8-byte discriminator:
-            // name: string (4-byte len + data), symbol: string, uri: string,
-            // mint: Pubkey (32), bondingCurve: Pubkey (32), user: Pubkey (32),
-            // creator: Pubkey (32), timestamp: i64,
-            // virtualTokenReserves: u64, virtualSolReserves: u64,
-            // realTokenReserves: u64, tokenTotalSupply: u64,
-            // tokenProgram: Pubkey (32), isMayhemMode: bool, isCashbackEnabled: bool
-            if (bytes.length < 20) return; // minimum for disc + a short string
-
-            let offset = 8;
-
-            // Read Borsh-encoded strings: 4-byte LE length prefix + data
-            const readString = (): string => {
-                if (offset + 4 > bytes.length) return '';
-                const len = bytes.readUInt32LE(offset);
-                offset += 4;
-                if (len > 1000 || offset + len > bytes.length) return '';
-                const str = bytes.subarray(offset, offset + len).toString('utf8');
-                offset += len;
-                return str;
-            };
-
-            const name = readString();
-            const symbol = readString();
-            const uri = readString();
-
-            // Remaining fixed-size fields
-            if (offset + 32 + 32 + 32 + 32 + 8 > bytes.length) return;
-
-            const mint = this.readPubkey(bytes, offset); offset += 32;
-            const _bondingCurve = this.readPubkey(bytes, offset); offset += 32;
-            const user = this.readPubkey(bytes, offset); offset += 32;
-            const creator = this.readPubkey(bytes, offset); offset += 32;
-            const timestamp = Number(bytes.readBigInt64LE(offset)); offset += 8;
-
-            // Skip reserves (4 * u64 = 32 bytes) + tokenProgram (32 bytes)
-            let mayhemMode = false;
-            let cashbackEnabled = false;
-            if (offset + 32 + 32 + 1 + 1 <= bytes.length) {
-                offset += 32 + 32; // reserves + tokenProgram
-                mayhemMode = bytes[offset] === 1; offset += 1;
-                cashbackEnabled = bytes[offset] === 1;
-            }
-
-            // Extract GitHub URLs from description/URI
-            const githubUrls = extractGithubUrlsFromString(name + ' ' + symbol + ' ' + uri);
-
-            const event: TokenLaunchEvent = {
-                txSignature: signature,
-                slot: 0,
-                timestamp,
-                mintAddress: mint,
-                creatorWallet: creator || user,
-                name,
-                symbol,
-                description: '',
-                metadataUri: uri,
-                hasGithub: githubUrls.length > 0,
-                githubUrls,
-                mayhemMode,
-                cashbackEnabled,
-            };
-
-            this.onLaunch(event);
-        } catch (err) {
-            log.debug('Launch decode error: %s', err);
-        }
+    private decodeLaunch(bytes: Buffer, signature: string): void {
+        const create = decodeCreateEvent(bytes);
+        if (!create) return;
+        const githubUrls = extractGithubUrlsFromString(create.name + ' ' + create.symbol + ' ' + create.uri);
+        this.onLaunch({
+            txSignature: signature,
+            slot: 0,
+            timestamp: create.timestamp,
+            mintAddress: create.mint,
+            creatorWallet: create.creator || create.user,
+            name: create.name,
+            symbol: create.symbol,
+            description: '',
+            metadataUri: create.uri,
+            hasGithub: githubUrls.length > 0,
+            githubUrls,
+            mayhemMode: create.isMayhemMode ?? false,
+            cashbackEnabled: create.isCashbackEnabled ?? false,
+        });
     }
 
-    private decodeGraduation(bytes: Buffer, disc: string, signature: string, blockTime?: number | null): void {
-        try {
-            // CompleteEvent layout after 8-byte discriminator:
-            // user: Pubkey (32), mint: Pubkey (32), bondingCurve: Pubkey (32)
-            if (bytes.length < 8 + 96) return;
-
-            const user = this.readPubkey(bytes, 8);
-            const mint = this.readPubkey(bytes, 40);
-            const bondingCurve = this.readPubkey(bytes, 72);
-            const isMigration = disc === COMPLETE_AMM_MIGRATION_DISCRIMINATOR;
-
-            const event: GraduationEvent = {
+    private decodeGraduation(bytes: Buffer, signature: string, blockTime?: number | null): void {
+        const fallbackTime = blockTime ?? Math.floor(Date.now() / 1000);
+        const migration = decodeMigrationEvent(bytes);
+        if (migration) {
+            this.onGraduation({
                 txSignature: signature,
                 slot: 0,
-                timestamp: blockTime ?? Math.floor(Date.now() / 1000),
-                mintAddress: mint,
-                user,
-                bondingCurve,
-                isMigration,
-            };
-
-            // Migration has extra fields
-            if (isMigration && bytes.length >= 8 + 96 + 32) {
-                let offset = 8 + 96;
-                // Read pool address (32 bytes)
-                event.poolAddress = this.readPubkey(bytes, offset);
-                offset += 32;
-                // Attempt to read SOL amount (u64) + token amount (u64) + fee (u64)
-                if (bytes.length >= offset + 24) {
-                    event.solAmount = Number(bytes.readBigUInt64LE(offset)) / LAMPORTS_PER_SOL;
-                    event.mintAmount = Number(bytes.readBigUInt64LE(offset + 8));
-                    event.poolMigrationFee = Number(bytes.readBigUInt64LE(offset + 16)) / LAMPORTS_PER_SOL;
-                }
-            }
-
-            this.onGraduation(event);
-        } catch (err) {
-            log.debug('Graduation decode error: %s', err);
+                timestamp: migration.timestamp || fallbackTime,
+                mintAddress: migration.mint,
+                user: migration.user,
+                bondingCurve: migration.bondingCurve,
+                isMigration: true,
+                solAmount: Number(migration.solAmount) / LAMPORTS_PER_SOL,
+                mintAmount: Number(migration.mintAmount),
+                poolMigrationFee: Number(migration.poolMigrationFee) / LAMPORTS_PER_SOL,
+                poolAddress: migration.pool,
+            });
+            return;
         }
-    }
-
-    private decodeTrade(bytes: Buffer, signature: string): void {
-        try {
-            // TradeEvent layout after 8-byte discriminator:
-            // mint: Pubkey (32), solAmount: u64, tokenAmount: u64, isBuy: bool (1),
-            // user: Pubkey (32), timestamp: i64, virtualSolReserves: u64,
-            // virtualTokenReserves: u64, realSolReserves: u64, realTokenReserves: u64
-            if (bytes.length < 8 + 32 + 8 + 8 + 1 + 32 + 8 + 8 + 8 + 8 + 8) return;
-
-            let offset = 8;
-            const mint = this.readPubkey(bytes, offset); offset += 32;
-            const solAmount = Number(bytes.readBigUInt64LE(offset)) / LAMPORTS_PER_SOL; offset += 8;
-            const tokenAmount = Number(bytes.readBigUInt64LE(offset)); offset += 8;
-            const isBuy = bytes[offset] === 1; offset += 1;
-            const user = this.readPubkey(bytes, offset); offset += 32;
-            const timestamp = Number(bytes.readBigInt64LE(offset)); offset += 8;
-            const virtualSolReserves = Number(bytes.readBigUInt64LE(offset)); offset += 8;
-            const virtualTokenReserves = Number(bytes.readBigUInt64LE(offset)); offset += 8;
-            const realSolReserves = Number(bytes.readBigUInt64LE(offset)); offset += 8;
-            const realTokenReserves = Number(bytes.readBigUInt64LE(offset)); offset += 8;
-
-            // Only alert on whales
-            if (solAmount < this.config.whaleThresholdSol) return;
-
-            const marketCapSol = virtualTokenReserves > 0
-                ? (virtualSolReserves * DEFAULT_TOKEN_TOTAL_SUPPLY) / (virtualTokenReserves * LAMPORTS_PER_SOL)
-                : 0;
-
-            const bondingCurveProgress = realSolReserves > 0
-                ? Math.min(100, (realSolReserves / LAMPORTS_PER_SOL) / DEFAULT_GRADUATION_SOL_THRESHOLD * 100)
-                : 0;
-
-            // Read remaining fields if available
-            let fee = 0;
-            let creatorFee = 0;
-            let mayhemMode = false;
-            let creator = '';
-
-            if (bytes.length >= offset + 8) { fee = Number(bytes.readBigUInt64LE(offset)) / LAMPORTS_PER_SOL; offset += 8; }
-            if (bytes.length >= offset + 8) { creatorFee = Number(bytes.readBigUInt64LE(offset)) / LAMPORTS_PER_SOL; offset += 8; }
-            if (bytes.length >= offset + 1) { mayhemMode = bytes[offset] === 1; offset += 1; }
-            if (bytes.length >= offset + 32) { creator = this.readPubkey(bytes, offset); }
-
-            const event: TradeAlertEvent = {
-                txSignature: signature,
-                slot: 0,
-                timestamp,
-                mintAddress: mint,
-                user,
-                creator,
-                isBuy,
-                solAmount,
-                tokenAmount,
-                fee,
-                creatorFee,
-                virtualSolReserves,
-                virtualTokenReserves,
-                realSolReserves,
-                realTokenReserves,
-                mayhemMode,
-                marketCapSol,
-                bondingCurveProgress,
-            };
-
-            this.onWhale(event);
-        } catch (err) {
-            log.debug('Trade decode error: %s', err);
-        }
+        const complete = decodeCompleteEvent(bytes);
+        if (!complete) return;
+        this.onGraduation({
+            txSignature: signature,
+            slot: 0,
+            timestamp: complete.timestamp ?? fallbackTime,
+            mintAddress: complete.mint,
+            user: complete.user,
+            bondingCurve: complete.bondingCurve,
+            isMigration: false,
+        });
     }
 
     private decodeFeeDistribution(bytes: Buffer, signature: string): void {
-        try {
-            // DistributeCreatorFeesEvent layout after 8-byte discriminator:
-            // timestamp: i64, mint: Pubkey (32), sharingConfig: Pubkey (32), admin: Pubkey (32),
-            // shareholders: Vec<{address: Pubkey(32), shareBps: u16}>,
-            // distributedAmount: u64
-            if (bytes.length < 8 + 8 + 96 + 8) return;
-
-            let offset = 8;
-            const timestamp = Number(bytes.readBigInt64LE(offset)); offset += 8;
-            const mint = this.readPubkey(bytes, offset); offset += 32;
-            const bondingCurve = this.readPubkey(bytes, offset); offset += 32;
-            const admin = this.readPubkey(bytes, offset); offset += 32;
-
-            // Parse shareholders vector: 4-byte LE count, then {Pubkey(32) + u16(2)} per entry
-            const shareholders: Array<{ address: string; shareBps: number }> = [];
-            if (offset + 4 <= bytes.length) {
-                const vecLen = bytes.readUInt32LE(offset); offset += 4;
-                for (let i = 0; i < vecLen && offset + 34 <= bytes.length; i++) {
-                    const address = this.readPubkey(bytes, offset); offset += 32;
-                    const shareBps = bytes.readUInt16LE(offset); offset += 2;
-                    shareholders.push({ address, shareBps });
-                }
-                if (vecLen > shareholders.length) {
-                    log.debug('Fee distribution: truncated shareholder list (%d/%d) for %s', shareholders.length, vecLen, signature.slice(0, 8));
-                }
-            }
-
-            // distributedAmount is the last 8 bytes after shareholders
-            let distributedSol = 0;
-            if (offset + 8 <= bytes.length) {
-                distributedSol = Number(bytes.readBigUInt64LE(offset)) / LAMPORTS_PER_SOL;
-            }
-
-            const event: FeeDistributionEvent = {
-                txSignature: signature,
-                slot: 0,
-                timestamp: timestamp || Math.floor(Date.now() / 1000),
-                mintAddress: mint,
-                bondingCurve,
-                admin,
-                distributedSol,
-                shareholders,
-            };
-
-            this.onFeeDistribution(event);
-        } catch (err) {
-            log.debug('Fee distribution decode error: %s', err);
-        }
-    }
-
-    private readPubkey(buf: Buffer, offset: number): string {
-        const bytes = buf.subarray(offset, offset + 32);
-        return bs58.encode(bytes);
+        const ev = decodeDistributeCreatorFeesEvent(bytes);
+        if (!ev) return;
+        this.onFeeDistribution({
+            txSignature: signature,
+            slot: 0,
+            timestamp: ev.timestamp || Math.floor(Date.now() / 1000),
+            mintAddress: ev.mint,
+            bondingCurve: ev.bondingCurve,
+            admin: ev.admin,
+            distributedSol: isSolQuote(ev.quoteMint) ? Number(ev.distributed) / LAMPORTS_PER_SOL : 0,
+            shareholders: ev.shareholders,
+        });
     }
 
     private trimCache(): void {
@@ -509,6 +351,79 @@ export class EventMonitor {
             this.processedSignatures = new Set(arr.slice(-5_000));
         }
     }
+}
+
+// ============================================================================
+// Whale trades
+// ============================================================================
+
+/**
+ * Whale alerts for one transaction. The buyer's total is the TradeEvent (curve
+ * part) plus, when the buy completed the curve, its PostCompleteBuyEvent (pool
+ * part). The SOL threshold applies to SOL-quoted coins only; trades on coins
+ * quoted in another mint are not SOL whales and are skipped.
+ */
+export function tradeAlertsFromPayloads(
+    payloads: readonly Buffer[],
+    signature: string,
+    whaleThresholdSol: number,
+): TradeAlertEvent[] {
+    const out: TradeAlertEvent[] = [];
+    for (const buyer of buyerTradesFromPayloads(payloads)) {
+        if (!isSolQuote(buyer.trade.quoteMint)) continue;
+        const alert = toTradeAlert(buyer, signature);
+        if (alert.solAmount >= whaleThresholdSol) out.push(alert);
+    }
+    return out;
+}
+
+/** Same as tradeAlertsFromPayloads, from raw log lines. */
+export function tradeAlertsFromLogs(logs: readonly string[], signature: string, whaleThresholdSol: number): TradeAlertEvent[] {
+    return tradeAlertsFromPayloads(programDataPayloads(logs), signature, whaleThresholdSol);
+}
+
+function toTradeAlert(buyer: BuyerTrade, signature: string): TradeAlertEvent {
+    const { trade, postComplete } = buyer;
+    const virtualSolReserves = Number(trade.virtualSolReserves);
+    const virtualTokenReserves = Number(trade.virtualTokenReserves);
+    const realSolReserves = Number(trade.realSolReserves);
+    const marketCapSol = virtualTokenReserves > 0
+        ? (virtualSolReserves * DEFAULT_TOKEN_TOTAL_SUPPLY) / (virtualTokenReserves * LAMPORTS_PER_SOL)
+        : 0;
+    const bondingCurveProgress = buyer.completedCurve
+        ? 100
+        : Math.min(100, (realSolReserves / LAMPORTS_PER_SOL) / DEFAULT_GRADUATION_SOL_THRESHOLD * 100);
+    const fee = (trade.fee ?? 0n) + (postComplete?.fee ?? 0n);
+    const creatorFee = (trade.creatorFee ?? 0n) + (postComplete?.creatorFee ?? 0n);
+
+    const alert: TradeAlertEvent = {
+        txSignature: signature,
+        slot: 0,
+        timestamp: trade.timestamp,
+        mintAddress: trade.mint,
+        user: trade.user,
+        creator: trade.creator ?? '',
+        isBuy: trade.isBuy,
+        solAmount: Number(buyer.totalQuote) / LAMPORTS_PER_SOL,
+        tokenAmount: Number(buyer.totalTokens),
+        fee: Number(fee) / LAMPORTS_PER_SOL,
+        creatorFee: Number(creatorFee) / LAMPORTS_PER_SOL,
+        virtualSolReserves,
+        virtualTokenReserves,
+        realSolReserves,
+        realTokenReserves: Number(trade.realTokenReserves),
+        mayhemMode: trade.mayhemMode ?? false,
+        marketCapSol,
+        bondingCurveProgress,
+        ixName: trade.ixName,
+        completedCurve: buyer.completedCurve,
+    };
+    if (postComplete) {
+        alert.curveSolAmount = Number(trade.solAmount) / LAMPORTS_PER_SOL;
+        alert.postCompleteSolAmount = Number(postComplete.quoteIn) / LAMPORTS_PER_SOL;
+        alert.postCompleteTokenAmount = Number(postComplete.baseOut);
+    }
+    return alert;
 }
 
 // ============================================================================

@@ -25,6 +25,8 @@ import {
     PUMP_FEE_PROGRAM_ID,
     SOCIAL_FEE_CLAIMED_DISC,
     CLAIM_SOCIAL_FEE_DISC,
+    CLAIM_SOCIAL_FEE_V2_DISC,
+    SOL_QUOTE_MINTS,
     type SocialFeeClaimEvent,
 } from './types.js';
 
@@ -287,6 +289,7 @@ export class ClaimMonitor {
         let socialFeePda: string | undefined;
         let amountLamports = 0;
         let lifetimeClaimedLamports: number | undefined;
+        let quoteMint: string | undefined;
         let isFake = false;
 
         // Parse SocialFeePdaClaimed event from CPI logs
@@ -300,9 +303,12 @@ export class ClaimMonitor {
                 const disc = Buffer.from(bytes.subarray(0, 8)).toString('hex');
                 if (disc !== SOCIAL_FEE_CLAIMED_DISC) continue;
 
-                // Layout: disc(8) + timestamp(i64=8) + user_id(borsh string) + platform(u8)
-                //         + social_fee_pda(32) + recipient(32) + authority(32) + amount(u64=8)
-                //         + [lifetime(u64=8)] + [claimable_before(u64=8)]
+                // Layout (IDL order): disc(8) + timestamp(i64) + user_id(borsh string) + platform(u8)
+                //         + social_fee_pda(32) + recipient(32) + authority(32) + amount_claimed(u64)
+                //         + claimable_before(u64) + lifetime_claimed(u64)
+                //         + recipient_balance_before(u64) + recipient_balance_after(u64)
+                //         + [quote_mint(32) + lifetime_stable_claimed(u64)] (V2 and later)
+                // Older events stop earlier; trailing bytes from newer versions are ignored.
                 let offset = 16; // skip disc + timestamp
 
                 // user_id: 4-byte LE length + UTF-8
@@ -324,31 +330,29 @@ export class ClaimMonitor {
                     socialFeePda = new PublicKey(bytes.subarray(offset, offset + 32)).toBase58();
                     offset += 32;
                 }
-                // recipient: pubkey(32) — skip
-                offset += 32;
-                // authority: pubkey(32) — skip
-                offset += 32;
+                // recipient and social_claim_authority: pubkey(32) each
+                offset += 64;
+                const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
                 // amount_claimed: u64
                 if (bytes.length >= offset + 8) {
-                    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
                     amountLamports = Number(view.getBigUint64(offset, true));
                     offset += 8;
                 }
-                // lifetime and claimable_before (two u64s, order varies by program version)
-                // Real lifetime lamports are always < a unix timestamp (~1.74B for 2026)
+                // claimable_before, then lifetime_claimed
                 if (bytes.length >= offset + 16) {
-                    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-                    const a = Number(view.getBigUint64(offset, true));
-                    const b = Number(view.getBigUint64(offset + 8, true));
-                    lifetimeClaimedLamports = Math.min(a, b);
-                } else if (bytes.length >= offset + 8) {
-                    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-                    lifetimeClaimedLamports = Number(view.getBigUint64(offset, true));
+                    lifetimeClaimedLamports = Number(view.getBigUint64(offset + 8, true));
+                }
+                offset += 16;
+                // recipient_balance_before, recipient_balance_after
+                offset += 16;
+                // quote_mint
+                if (bytes.length >= offset + 32) {
+                    quoteMint = new PublicKey(bytes.subarray(offset, offset + 32)).toBase58();
                 }
             } catch { /* skip unparseable */ }
         }
 
-        // Fake claim: instruction present but no event emitted (amountLamports = 0)
+        // Fake claim: instruction present but nothing paid out (no event, or amount 0)
         if (amountLamports === 0) {
             isFake = true;
             // Try extracting user_id from the instruction data itself
@@ -359,7 +363,7 @@ export class ClaimMonitor {
                 try {
                     const ixBytes = bs58.decode(ix.data);
                     const disc = Buffer.from(ixBytes.subarray(0, 8)).toString('hex');
-                    if (disc !== CLAIM_SOCIAL_FEE_DISC) continue;
+                    if (disc !== CLAIM_SOCIAL_FEE_DISC && disc !== CLAIM_SOCIAL_FEE_V2_DISC) continue;
                     let offset = 8;
                     const uidLen = Buffer.from(ixBytes.subarray(offset, offset + 4)).readUInt32LE(0);
                     offset += 4;
@@ -377,6 +381,9 @@ export class ClaimMonitor {
 
         if (!githubUserId) return null;
         if (!isFake && amountLamports < 1_000) return null;
+        // The leaderboard ranks SOL earnings; a V2 claim paid in another quote
+        // mint (USDC) is in that mint's base units, not lamports.
+        if (quoteMint && !SOL_QUOTE_MINTS.has(quoteMint)) return null;
 
         return {
             txSignature,

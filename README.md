@@ -196,6 +196,21 @@ The `RpcFallback` class manages multiple Solana RPC endpoints with automatic rot
 | Pump | `6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P` | Bonding curve (graduations) |
 | PumpAMM | `pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA` | AMM (graduated pool events) |
 
+Claim instructions decoded (v1 and the V2 variants from the October 2026 upgrade):
+
+| Instruction | Program | Notes |
+|-------------|---------|-------|
+| `claim_social_fee_pda`, `claim_social_fee_pda_v2` | PumpFees | GitHub social fee claims; V2 can pay in a quote mint such as USDC |
+| `collect_creator_fee`, `collect_creator_fee_v2` | Pump | Creator vault to creator |
+| `distribute_creator_fees`, `distribute_creator_fees_v2` | Pump | Creator fees split to shareholders |
+| `transfer_creator_fees_to_pump`, `transfer_creator_fees_to_pump_v2` | PumpAMM | Pool creator fees moved back to the Pump vault (no payout event) |
+| `collect_coin_creator_fee` | PumpAMM | Pool creator fees to creator |
+| `claim_cashback`, `claim_cashback_v2` | Pump, PumpAMM | Trader cashback |
+
+`sweep_creator_fee` and `sweep_protocol_fee` (Pump and PumpAMM) are recognised but are never counted as a claim: a sweep only moves fees the curve or pool still holds into the creator vault, and pays nobody. A claim transaction usually carries a sweep first, then the claim; only the claim (vault to creator) is reported, and each claim is paid by its own event, so nothing is counted twice. A sweep-only transaction posts nothing.
+
+Event decoders read the fields they need from the known prefix and ignore trailing bytes, so both pre-upgrade events and the longer October 2026 layouts decode. Trades recognise the `buy_v3`, `sell_v3`, `buy_exact_quote_in_v3` and `multi_hop_swap` instruction names. Since the upgrade a buy can complete the bonding curve and keep buying on the new PumpSwap pool in the same instruction (synthetic migration, before `migrate` runs); the whale feed adds that `PostCompleteBuyEvent` amount to the buyer's total and marks the trade as having completed the curve.
+
 ## Install
 
 ### npm (MCP server — recommended for AI assistants)
@@ -436,7 +451,10 @@ pumpfun-claims-bot/
 Transaction detected on PumpFees program
   │
   ▼
-Identify instruction: claim_social_fee_pda?
+Skip sweep_creator_fee / sweep_protocol_fee (not a payout)
+  │
+  ▼
+Identify instruction: claim_social_fee_pda or claim_social_fee_pda_v2?
   │
   ├─ YES ──▶ Parse platform (2 = GitHub) + user_id from Anchor args
   │           │
@@ -467,7 +485,7 @@ On startup, the bot fetches all `SharingConfig` accounts from the PumpFees progr
 
 Some users call the `claim_social_fee_pda` instruction targeting random token PDAs where they have no fees to collect. The bot detects these by checking:
 
-1. The instruction discriminator matches `claim_social_fee_pda`
+1. The instruction discriminator matches `claim_social_fee_pda` or `claim_social_fee_pda_v2`
 2. The transaction logs contain no `SocialFeePdaClaimed` event — OR the event shows `amountLamports = 0`
 3. The GitHub user ID and platform are still parsed from the instruction args (Anchor Borsh format)
 

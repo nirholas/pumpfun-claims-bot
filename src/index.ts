@@ -19,7 +19,7 @@ import { hasGithubUserClaimed, markGithubUserClaimed, incrementGithubClaimCount,
 import { fetchTokenInfo, fetchTopHolders, fetchTokenTrades, fetchDevWalletInfo, fetchSolUsdPrice, fetchPoolLiquidity, fetchBundleInfo, fetchCreatorProfile, fetchSameNameTokens } from './pump-client.js';
 import { fetchGitHubUserById, fetchRepoFromUrls } from './github-client.js';
 import { fetchXProfile } from './x-client.js';
-import { formatGitHubClaimFeed, formatCreatorClaimFeed, formatGraduationFeed, sanitiseHtml } from './formatters.js';
+import { formatClaimAmount, formatGitHubClaimFeed, formatCreatorClaimFeed, formatGraduationFeed, sanitiseHtml } from './formatters.js';
 import { isCreatorClaimType, shouldPostCreatorClaim } from './claim-routing.js';
 import type { ClaimFeedContext, CreatorClaimContext } from './formatters.js';
 import { scoreCredibility } from './credibility.js';
@@ -350,8 +350,8 @@ async function main(): Promise<void> {
                 tokenInfo,
             });
             const reputation = getReputation(event.githubUserId, mint);
-            log.info('🚨 GitHub social fee FIRST claim by %s (%s) — %s SOL',
-                event.githubUserId, githubUser?.login ?? '?', event.amountSol.toFixed(4));
+            log.info('🚨 GitHub social fee FIRST claim by %s (%s): %s',
+                event.githubUserId, githubUser?.login ?? '?', formatClaimAmount(event, 0));
 
             const ctx: ClaimFeedContext = {
                 event,
@@ -362,7 +362,7 @@ async function main(): Promise<void> {
                 isFirstClaim: true,
                 isFake: false,
                 claimNumber,
-                lifetimeClaimedSol: event.lifetimeClaimedLamports != null
+                lifetimeClaimedSol: event.lifetimeClaimedLamports != null && !event.quoteMint
                     ? event.lifetimeClaimedLamports / 1e9
                     : undefined,
                 repoInfo,
@@ -433,8 +433,8 @@ async function main(): Promise<void> {
                 fetchCreatorProfile(event.claimerWallet),
             ]);
 
-            log.info('💰 Creator fee claim by %s — %s SOL (%s)',
-                event.claimerWallet.slice(0, 8), event.amountSol.toFixed(4), event.claimLabel);
+            log.info('💰 Creator fee claim by %s: %s (%s)',
+                event.claimerWallet.slice(0, 8), formatClaimAmount(event, 0), event.claimLabel);
 
             const ctx: CreatorClaimContext = {
                 event,

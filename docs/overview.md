@@ -40,6 +40,8 @@ Three Solana programs are watched:
 | Pump (`6EF8rre...`) | Bonding curve — graduation events |
 | PumpAMM (`pAMMBay...`) | AMM — post-graduation pool events |
 
+Both the original claim instructions and their V2 variants from the October 2026 upgrade are decoded. Fee sweeps (`sweep_creator_fee`, `sweep_protocol_fee`) only move fees into the creator vault, so they are never reported as a claim; the claim that follows them is. See the README's "Programs Monitored" section for the full list.
+
 ---
 
 ## Two Ways to Use This Project
