@@ -1,0 +1,28 @@
+# pumpfun-claims-bot
+
+> PumpFun GitHub social fee claim monitor: real-time Telegram feed for first-time creator fee claims on Solana
+
+pumpfun-claims-bot is an open-source repository by nirholas, part of the three.ws ecosystem.
+
+## Docs
+
+- [README](https://github.com/nirholas/pumpfun-claims-bot/blob/HEAD/README.md): install, usage and reference
+- [Related Source](https://github.com/nirholas/pumpfun-claims-bot/blob/HEAD/README.md#related-source)
+- [Features](https://github.com/nirholas/pumpfun-claims-bot/blob/HEAD/README.md#features)
+- [What a GitHub claim actually proves](https://github.com/nirholas/pumpfun-claims-bot/blob/HEAD/README.md#what-a-github-claim-actually-proves)
+- [Architecture](https://github.com/nirholas/pumpfun-claims-bot/blob/HEAD/README.md#architecture)
+- [Install](https://github.com/nirholas/pumpfun-claims-bot/blob/HEAD/README.md#install)
+- [Quick Start](https://github.com/nirholas/pumpfun-claims-bot/blob/HEAD/README.md#quick-start)
+- [Project Structure](https://github.com/nirholas/pumpfun-claims-bot/blob/HEAD/README.md#project-structure)
+- [How It Works](https://github.com/nirholas/pumpfun-claims-bot/blob/HEAD/README.md#how-it-works)
+- [AGENTS.md](https://github.com/nirholas/pumpfun-claims-bot/blob/HEAD/AGENTS.md): guidance for coding agents
+- [Full text for LLMs](https://github.com/nirholas/pumpfun-claims-bot/blob/HEAD/llms-full.txt): the README inlined
+
+## Project
+
+- [Source](https://github.com/nirholas/pumpfun-claims-bot)
+- [Issues](https://github.com/nirholas/pumpfun-claims-bot/issues)
+- [Discussions](https://github.com/nirholas/pumpfun-claims-bot/discussions)
+- [Homepage](https://nirholas.github.io/pumpfun-claims-bot/)
+- [three.ws](https://three.ws): the platform this is part of
+- [All repositories by nirholas](https://github.com/nirholas/nirholas#readme)

@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: If you use this software, please cite it as below.
+title: "pumpfun-claims-bot"
+abstract: "PumpFun GitHub social fee claim monitor: real-time Telegram feed for first-time creator fee claims on Solana"
+repository-code: "https://github.com/nirholas/pumpfun-claims-bot"
+url: "https://three.ws"
+authors:
+  - name: three.ws
+    website: "https://three.ws"
