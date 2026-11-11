@@ -1,0 +1,22 @@
+{
+  "name": "pumpfun-claims-bot",
+  "owner": {
+    "name": "nirholas"
+  },
+  "description": "MCP server for PumpFun token info, holders, trades, bundles, creator profiles and GitHub social fee claims.",
+  "plugins": [
+    {
+      "name": "pumpfun-claims-intel",
+      "source": "./plugins/pumpfun-claims-intel",
+      "description": "MCP server for PumpFun token info, holders, trades, bundles, creator profiles and GitHub social fee claims.",
+      "category": "data",
+      "tags": [
+        "pumpfun",
+        "solana",
+        "mcp",
+        "claims",
+        "on-chain"
+      ]
+    }
+  ]
+}
