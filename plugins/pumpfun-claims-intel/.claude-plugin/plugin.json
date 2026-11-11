@@ -1,0 +1,17 @@
+{
+  "name": "pumpfun-claims-intel",
+  "version": "1.0.5",
+  "description": "MCP server for PumpFun token info, holders, trades, bundles, creator profiles and GitHub social fee claims.",
+  "author": {
+    "name": "nirholas"
+  },
+  "repository": "https://github.com/nirholas/pumpfun-claims-bot",
+  "homepage": "https://github.com/nirholas/pumpfun-claims-bot#mcp-server",
+  "keywords": [
+    "pumpfun",
+    "solana",
+    "mcp",
+    "claims",
+    "on-chain"
+  ]
+}

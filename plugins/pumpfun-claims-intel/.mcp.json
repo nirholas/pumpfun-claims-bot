@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "pumpfun-claims": {
+      "command": "npx",
+      "args": ["-y", "pumpfun-claims-bot"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN:-}",
+        "SOLANA_RPC_URL": "${SOLANA_RPC_URL:-}"
+      }
+    }
+  }
+}
