@@ -94,6 +94,7 @@ See [add-affiliate-codes.md](add-affiliate-codes.md) for how to get your codes.
 |----------|---------|-------------|
 | `POLL_INTERVAL_SECONDS` | `30` | HTTP polling interval when WebSocket is unavailable |
 | `LOG_LEVEL` | `info` | Log verbosity: `debug` \| `info` \| `warn` \| `error` |
+| `LOG_FORMAT` | `text` | `json` writes one JSON object per line (`time`, `level`, `msg`) for log aggregators |
 | `DATA_DIR` | `./data` | Directory for persisted state files (e.g. first-claims JSON). Mount a persistent volume here on Railway |
 
 ---

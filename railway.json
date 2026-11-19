@@ -49,6 +49,10 @@
             "LOG_LEVEL": {
                 "description": "Log level: debug | info | warn | error",
                 "required": false
+            },
+            "LOG_FORMAT": {
+                "description": "Log format: text | json (one JSON object per line)",
+                "required": false
             }
         }
     }

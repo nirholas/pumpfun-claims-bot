@@ -8,9 +8,8 @@
 
 import 'dotenv/config';
 
+import type { LogFormat, LogLevel } from './logger.js';
 import { maskUrl } from './rpc-fallback.js';
-
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export interface ChannelBotConfig {
     /** Telegram Bot API token */
@@ -29,6 +28,8 @@ export interface ChannelBotConfig {
     pollIntervalSeconds: number;
     /** Log level */
     logLevel: LogLevel;
+    /** Log line format: readable text or one JSON object per line */
+    logFormat: LogFormat;
     /** Feed toggles */
     feed: {
         claims: boolean;
@@ -55,6 +56,7 @@ export interface ChannelBotConfig {
 type Env = Record<string, string | undefined>;
 
 const LOG_LEVELS: readonly LogLevel[] = ['debug', 'info', 'warn', 'error'];
+const LOG_FORMATS: readonly LogFormat[] = ['text', 'json'];
 
 /** Referral codes used when AXIOM_REF / GMGN_REF / PADRE_REF are not set. */
 const DEFAULT_AFFILIATES = { axiom: 'nich', gmgn: 'nichxbt', padre: 'nichxbt' } as const;
@@ -147,6 +149,9 @@ export function loadConfig(env: Env = process.env): ChannelBotConfig {
     const rawLogLevel = (read.string('LOG_LEVEL') ?? 'info').toLowerCase();
     const logLevel = LOG_LEVELS.find((level) => level === rawLogLevel);
     if (!logLevel) read.problems.push(`LOG_LEVEL must be one of ${LOG_LEVELS.join(', ')}, got "${rawLogLevel}"`);
+    const rawLogFormat = (read.string('LOG_FORMAT') ?? 'text').toLowerCase();
+    const logFormat = LOG_FORMATS.find((f) => f === rawLogFormat);
+    if (!logFormat) read.problems.push(`LOG_FORMAT must be one of ${LOG_FORMATS.join(', ')}, got "${rawLogFormat}"`);
 
     const config: ChannelBotConfig = {
         telegramToken,
@@ -157,6 +162,7 @@ export function loadConfig(env: Env = process.env): ChannelBotConfig {
         solanaWsUrlExplicit: explicitWs !== undefined,
         pollIntervalSeconds: read.integer('POLL_INTERVAL_SECONDS', 30, 1, 3600),
         logLevel: logLevel ?? 'info',
+        logFormat: logFormat ?? 'text',
         feed: {
             claims: read.boolean('FEED_CLAIMS', true),
             graduations: read.boolean('FEED_GRADUATIONS', false),

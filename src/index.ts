@@ -33,7 +33,7 @@ import { decideFirstClaim } from './first-claim.js';
 import { formatClaimAmount, formatCreatorClaimFeed, formatGitHubClaimFeed, formatGraduationFeed, type ClaimFeedContext } from './formatters.js';
 import { fetchGitHubUserById, fetchRepoFromUrls } from './github-client.js';
 import { startHealthServer, stopHealthServer } from './health.js';
-import { log, setLogLevel } from './logger.js';
+import { log, setLogFormat, setLogLevel } from './logger.js';
 import { startMcpHttpServer } from './mcp-server.js';
 import {
     fetchBundleInfo,
@@ -69,6 +69,7 @@ function settle<T>(p: Promise<T>): Promise<T | null> {
 async function main(): Promise<void> {
     const config = loadConfig();
     setLogLevel(config.logLevel);
+    setLogFormat(config.logFormat);
 
     log.info('PumpFun Channel Bot starting...');
     log.info('  Channel: %s', config.channelId);

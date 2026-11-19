@@ -40,6 +40,7 @@ const CONFIG: ChannelBotConfig = {
     solanaWsUrlExplicit: false,
     pollIntervalSeconds: 30,
     logLevel: 'info',
+    logFormat: 'text',
     feed: { claims: true, graduations: false, feeDistributions: false },
     requireGithub: false,
     affiliates: { axiom: '', gmgn: '', padre: '' },

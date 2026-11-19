@@ -41,6 +41,7 @@ const CONFIG = {
     solanaWsUrlExplicit: false,
     pollIntervalSeconds: 3600,
     logLevel: 'info',
+    logFormat: 'text',
     feed: { claims: false, graduations: true, feeDistributions: false },
     requireGithub: true,
     affiliates: { axiom: '', gmgn: '', padre: '' },

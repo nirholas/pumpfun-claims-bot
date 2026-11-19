@@ -294,6 +294,7 @@ GITHUB_TOKEN=ghp_your_token      # Raises GitHub rate limit: 60 → 5000 req/hr
 # ── Tuning ────────────────────────────────────────────────
 POLL_INTERVAL_SECONDS=30         # HTTP polling fallback interval (default: 30)
 LOG_LEVEL=info                   # debug | info | warn | error (default: info)
+LOG_FORMAT=text                  # text | json, one JSON object per line (default: text)
 
 # ── Health Check ──────────────────────────────────────────
 # PORT=3000                      # Set automatically by Railway
@@ -320,6 +321,7 @@ LOG_LEVEL=info                   # debug | info | warn | error (default: info)
 | `PADRE_REF` |: |: | Affiliate ref code for [Padre](https://padre.bot) trading links |
 | `POLL_INTERVAL_SECONDS` |: | `30` | HTTP polling interval when WebSocket is unavailable |
 | `LOG_LEVEL` |: | `info` | Log verbosity: `debug` \| `info` \| `warn` \| `error` |
+| `LOG_FORMAT` |: | `text` | `json` writes one JSON object per line (`time`, `level`, `msg`) for log aggregators |
 | `PORT` |: | `3000` | Health check HTTP server port: set automatically by [Railway](https://railway.app) |
 | `MCP_ENABLED` |: | `false` | Enable the MCP (Model Context Protocol) server for AI assistant integrations |
 | `MCP_PORT` |: | `3001` | MCP server HTTP port (Streamable HTTP transport) |

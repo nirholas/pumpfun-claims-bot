@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - Pump October 2026 upgrade
 
+### Added
+
+- **`LOG_FORMAT=json`** writes one JSON object per line (`time`, `level`, `msg`) for log aggregators. The default text format is unchanged.
+
 ### Removed
 
 - **`GROQ_API_KEY` and AI claim summaries.** The Groq client was never called, so no card ever carried an AI summary. The client, its guide and its configuration are removed.

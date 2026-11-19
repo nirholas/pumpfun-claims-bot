@@ -23,6 +23,7 @@ describe('loadConfig', () => {
         expect(config.solanaWsUrlExplicit).toBe(false);
         expect(config.pollIntervalSeconds).toBe(30);
         expect(config.logLevel).toBe('info');
+        expect(config.logFormat).toBe('text');
         expect(config.feed).toEqual({ claims: true, graduations: false, feeDistributions: false });
         expect(config.requireGithub).toBe(true);
         expect(config.healthPort).toBe(3000);
@@ -51,8 +52,10 @@ describe('loadConfig', () => {
         });
     });
 
-    it('rejects an unknown log level', () => {
+    it('rejects an unknown log level or format', () => {
         expect(problemsFor({ LOG_LEVEL: 'verbose' })[0]).toMatch(/LOG_LEVEL must be one of/);
+        expect(problemsFor({ LOG_FORMAT: 'xml' })[0]).toMatch(/LOG_FORMAT must be one of text, json/);
+        expect(loadConfig({ ...REQUIRED, LOG_FORMAT: 'JSON' }).logFormat).toBe('json');
     });
 
     it('validates RPC URLs without echoing their API keys', () => {
