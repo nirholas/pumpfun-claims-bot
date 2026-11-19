@@ -5,7 +5,7 @@
  * Uses mocked fetch to avoid real API calls.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { parseGitHubRepo, fetchGitHubRepo, fetchGitHubUser, fetchGitHubUserById, fetchRepoFromUrls } from '../github-client.js';
 
 // ── parseGitHubRepo ──────────────────────────────────────────────────────────

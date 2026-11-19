@@ -74,7 +74,7 @@ describe('EventMonitor polling', () => {
         const seen: GraduationEvent[] = [];
         const monitor = new EventMonitor(CONFIG, (e) => { seen.push(e); });
 
-        await monitor.start();
+        monitor.start();
         await vi.waitFor(() => expect(seen).toHaveLength(1));
         monitor.stop();
 

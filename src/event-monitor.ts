@@ -67,13 +67,13 @@ export class EventMonitor {
         this.programPubkey = new PublicKey(PUMP_PROGRAM_ID);
     }
 
-    async start(): Promise<void> {
+    start(): void {
         if (this.isRunning) return;
         this.isRunning = true;
 
         if (this.config.solanaWsUrl && this.config.solanaWsUrlExplicit) {
             try {
-                await this.startWebSocket();
+                this.startWebSocket();
                 log.info('Event monitor: WebSocket mode');
                 return;
             } catch (err) {
@@ -103,7 +103,7 @@ export class EventMonitor {
 
     // ── WebSocket ────────────────────────────────────────────────────
 
-    private async startWebSocket(): Promise<void> {
+    private startWebSocket(): void {
         this.wsConnection = new Connection(this.rpc.currentUrl, {
             commitment: 'confirmed',
             wsEndpoint: this.config.solanaWsUrl,
@@ -144,14 +144,16 @@ export class EventMonitor {
         this.wsSubscriptionId = undefined;
         this.wsConnection = undefined;
 
-        this.startWebSocket().catch((err) => {
+        try {
+            this.startWebSocket();
+        } catch (err) {
             log.warn('Event monitor WS reconnect failed, falling back to polling: %s', err);
             if (this.wsHeartbeatTimer) {
                 clearInterval(this.wsHeartbeatTimer);
                 this.wsHeartbeatTimer = undefined;
             }
             this.startPolling();
-        });
+        }
     }
 
     /** Decode the graduation events in one transaction's logs. */
@@ -194,7 +196,7 @@ export class EventMonitor {
             }
 
             if (!this.stopped) {
-                this.pollTimer = setTimeout(poll, this.config.pollIntervalSeconds * 1000);
+                this.pollTimer = setTimeout(() => void poll(), this.config.pollIntervalSeconds * 1000);
             }
         };
         void poll();

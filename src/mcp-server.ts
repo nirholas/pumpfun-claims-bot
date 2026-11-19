@@ -141,7 +141,7 @@ function createMcpServer(): McpServer {
             + 'when run without a bot\'s data.',
         inputSchema: { githubUserId },
         annotations: { readOnlyHint: true, openWorldHint: false },
-    }, async ({ githubUserId: id }) => json({
+    }, ({ githubUserId: id }) => json({
         githubUserId: id,
         hasClaimed: hasGithubUserClaimed(id),
         totalClaimCount: getGithubTotalClaimCount(id),

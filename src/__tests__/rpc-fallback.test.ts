@@ -5,7 +5,7 @@
  * Uses a fake Connection-like object to avoid real Solana network calls.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { RpcFallback, maskUrl } from '../rpc-fallback.js';
 
 // ── maskUrl ──────────────────────────────────────────────────────────────────

@@ -41,6 +41,8 @@ npm install
 | build | `npm run build` |
 | test | `npm test` |
 | typecheck | `npm run typecheck` |
+| lint | `npm run lint` |
+| all checks | `npm run check` |
 | build image | `docker build .` |
 
 Run the test and lint commands above before you consider a change finished. If a command fails on code you did not touch, say so in your report instead of silently skipping it.

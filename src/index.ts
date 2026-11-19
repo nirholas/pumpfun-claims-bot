@@ -367,11 +367,11 @@ async function main(): Promise<void> {
 
     // ── Start ─────────────────────────────────────────────────────────
     if (claimMonitor) {
-        await claimMonitor.start();
+        claimMonitor.start();
         log.info('Claim monitor started');
     }
     if (eventMonitor) {
-        await eventMonitor.start();
+        eventMonitor.start();
         log.info('Graduation monitor started');
     }
     log.info('Channel feed is live → %s', config.channelId);

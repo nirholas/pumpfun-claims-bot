@@ -11,7 +11,6 @@ import {
     influencerLabel,
     isXCommunityUrl,
     parseXHandle,
-    type InfluencerTier,
 } from '../x-client.js';
 
 // ── getInfluencerTier ────────────────────────────────────────────────────────

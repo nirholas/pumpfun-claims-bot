@@ -16,6 +16,7 @@ import bs58 from 'bs58';
 
 import { BoundedSet } from './bounded.js';
 import type { ChannelBotConfig } from './config.js';
+import { asRecord, num, str } from './json-fields.js';
 import { log } from './logger.js';
 import { dataFile, objectEntries, readJsonFile, writeJsonFileAtomic } from './persistence.js';
 import { maskUrl, RpcFallback } from './rpc-fallback.js';
@@ -25,7 +26,7 @@ import {
     UPDATE_FEE_SHARES_EVENT_DISC,
 } from './social-fee-index.js';
 import { planClaims, type PlannedClaim, type TopLevelInstruction } from './claim-attribution.js';
-import type { FeeClaimEvent, ClaimType } from './types.js';
+import type { FeeClaimEvent } from './types.js';
 import {
     PUMP_PROGRAM_ID,
     PUMP_AMM_PROGRAM_ID,
@@ -71,7 +72,7 @@ class RpcQueue {
     enqueue(signature: string): boolean {
         if (this.queue.length >= MAX_QUEUE_SIZE) return false;
         this.queue.push(signature);
-        this.drain();
+        void this.drain();
         return true;
     }
 
@@ -99,7 +100,7 @@ class RpcQueue {
             this.inFlight++;
             this.processFn(sig)
                 .catch((err) => { log.debug('RPC queue item failed: %s', err); })
-                .finally(() => { this.inFlight--; this.drain(); });
+                .finally(() => { this.inFlight--; void this.drain(); });
         }
         this.processing = false;
     }
@@ -269,7 +270,7 @@ export class ClaimMonitor {
         }
     }
 
-    async start(): Promise<void> {
+    start(): void {
         if (this.isRunning) return;
         this.isRunning = true;
         this.startedAt = Date.now();
@@ -297,11 +298,11 @@ export class ClaimMonitor {
             !!this.config.solanaWsUrl && (this.config.requireGithub || this.config.solanaWsUrlExplicit);
         if (preferWebSocket) {
             try {
-                await this.startWebSocket();
+                this.startWebSocket();
                 log.info('Claim monitor: WebSocket mode');
                 return;
             } catch (err) {
-                log.warn('WS failed, falling back to polling:', err);
+                log.warn('WS failed, falling back to polling: %s', err);
             }
         }
 
@@ -341,7 +342,7 @@ export class ClaimMonitor {
 
     // ── WebSocket ────────────────────────────────────────────────────
 
-    private async startWebSocket(): Promise<void> {
+    private startWebSocket(): void {
         this.wsConnection = new Connection(this.rpc.currentUrl, {
             commitment: 'confirmed',
             wsEndpoint: this.config.solanaWsUrl,
@@ -353,11 +354,11 @@ export class ClaimMonitor {
         for (const pubkey of this.programPubkeys) {
             const subId = this.wsConnection.onLogs(
                 pubkey,
-                async (logInfo: Logs) => {
+                (logInfo: Logs) => {
                     this.lastWsEventTime = Date.now();
                     this.wsEventsReceived++;
-                    try { await this.handleLogEvent(logInfo); }
-                    catch (err) { log.error('Log event error:', err); }
+                    try { this.handleLogEvent(logInfo); }
+                    catch (err) { log.error('Log event error: %s', err); }
                 },
                 'confirmed',
             );
@@ -421,7 +422,9 @@ export class ClaimMonitor {
             }
         }
 
-        this.startWebSocket().catch((err) => {
+        try {
+            this.startWebSocket();
+        } catch (err) {
             if (this.config.requireGithub) {
                 // No polling fallback for a GitHub-only channel — schedule another WS
                 // attempt (the heartbeat may not be armed if startWebSocket failed early).
@@ -436,10 +439,10 @@ export class ClaimMonitor {
                 this.wsHeartbeatTimer = undefined;
             }
             this.startPolling();
-        });
+        }
     }
 
-    private async handleLogEvent(logInfo: Logs): Promise<void> {
+    private handleLogEvent(logInfo: Logs): void {
         const { signature, logs, err } = logInfo;
         if (err) return;
         if (!this.processedSignatures.add(signature)) return;
@@ -492,7 +495,7 @@ export class ClaimMonitor {
                     this.consecutive429s++;
                     this.rpcQueue.note429();
                 } else {
-                    log.error('Poll error:', err);
+                    log.error('Poll error: %s', err);
                 }
             }
             if (this.isRunning) {
@@ -501,10 +504,10 @@ export class ClaimMonitor {
                     8,
                 );
                 const delay = this.config.pollIntervalSeconds * backoff * 1000;
-                this.pollTimer = setTimeout(poll, delay);
+                this.pollTimer = setTimeout(() => void poll(), delay);
             }
         };
-        poll();
+        void poll();
     }
 
     private async pollAllPrograms(): Promise<void> {
@@ -672,12 +675,11 @@ export class ClaimMonitor {
             const innerIxs = tx.meta?.innerInstructions ?? [];
             for (const inner of innerIxs) {
                 for (const innerIx of inner.instructions) {
-                    if (
-                        'parsed' in innerIx &&
-                        innerIx.parsed?.type === 'transfer' &&
-                        innerIx.parsed?.info?.destination === signerKey
-                    ) {
-                        amountLamports = Number(innerIx.parsed.info.lamports ?? 0);
+                    if (!('parsed' in innerIx)) continue;
+                    const parsed = asRecord(innerIx.parsed);
+                    const info = asRecord(parsed.info);
+                    if (parsed.type === 'transfer' && str(info.destination) === signerKey) {
+                        amountLamports = num(info.lamports);
                     }
                 }
             }

@@ -372,6 +372,7 @@ describe('formatGraduationFeed', () => {
         const event = makeGraduationEvent();
         const { imageUrl, caption } = formatGraduationFeed(event, null, null, 150);
 
+        expect(imageUrl).toBeNull(); // no token info, so no image
         expect(typeof caption).toBe('string');
         expect(caption.length).toBeGreaterThan(0);
     });

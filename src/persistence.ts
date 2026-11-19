@@ -29,7 +29,7 @@ export function readJsonFile(path: string): unknown {
     try {
         return JSON.parse(readFileSync(path, 'utf8')) as unknown;
     } catch (err) {
-        throw new Error(`Cannot read ${path}: ${err instanceof Error ? err.message : String(err)}`);
+        throw new Error(`Cannot read ${path}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
     }
 }
 

@@ -446,10 +446,9 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
     // ━━ SAME-NAME TOKENS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     if (ctx.sameNameTokens && ctx.sameNameTokens.length > 0) {
         const top = ctx.sameNameTokens[0]!;
-        const isCopycat = tokenInfo && top.usdMarketCap > tokenInfo.usdMarketCap * 5;
-        if (isCopycat) {
+        if (tokenInfo && top.usdMarketCap > tokenInfo.usdMarketCap * 5) {
             L.push(`🚩 <b>Same Name Tokens — possible copycat</b>`);
-            L.push(`This token: $${formatCompact(tokenInfo!.usdMarketCap)}`);
+            L.push(`This token: $${formatCompact(tokenInfo.usdMarketCap)}`);
         } else {
             L.push(`🔍 <b>Same Name Tokens</b>`);
         }

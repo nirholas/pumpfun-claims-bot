@@ -22,10 +22,9 @@ First off, thanks for taking the time to contribute! 🎉
 2. **Create a branch**: `git checkout -b feat/my-feature` or `fix/my-bug`
 3. **Install dependencies**: `npm install`
 4. **Make your changes** — keep commits focused and atomic
-5. **Run checks**:
+5. **Run checks** (CI runs the same):
    ```bash
-   npm run typecheck   # TypeScript compilation check
-   npm test            # Run test suite
+   npm run check       # typecheck, lint, test and build in one go
    ```
 6. **Push & open a PR** against `main`
 
@@ -60,8 +59,9 @@ npm run dev
 # Run tests
 npm test
 
-# Type check
+# Type check and lint
 npm run typecheck
+npm run lint
 ```
 
 ## Code Style
@@ -69,13 +69,13 @@ npm run typecheck
 - **TypeScript** — strict mode enabled
 - **ES Modules** — use `import`/`export`, not `require`
 - **Naming**: camelCase for variables/functions, PascalCase for types/interfaces
-- **No lint config yet** — just keep it consistent with existing code
+- **ESLint** (`eslint.config.js`, typescript-eslint with type-aware rules) — `npm run lint` must pass; fix the code rather than disabling a rule
 
 ## What Makes a Good PR?
 
 - ✅ Solves one problem (don't bundle unrelated changes)
 - ✅ Tests pass (`npm test`)
-- ✅ Types check (`npm run typecheck`)
+- ✅ Types check and lint pass (`npm run typecheck`, `npm run lint`)
 - ✅ Includes tests for new functionality
 - ✅ Updates README if adding user-facing features
 - ✅ Descriptive PR title and body

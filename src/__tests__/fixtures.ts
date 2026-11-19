@@ -4,7 +4,7 @@
  */
 
 import type { FeeClaimEvent, GraduationEvent } from '../types.js';
-import type { ClaimFeedContext, CreatorClaimContext } from '../formatters.js';
+import type { ClaimFeedContext } from '../formatters.js';
 import type { GitHubRepoInfo, GitHubUserInfo } from '../github-client.js';
 import type { XProfile } from '../x-client.js';
 

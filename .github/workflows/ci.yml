@@ -11,12 +11,12 @@ permissions:
 
 jobs:
   check:
-    name: Typecheck & Test
+    name: Typecheck, lint, test & build
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        node-version: [20, 22]
+        node-version: [20, 22, 24]
 
     steps:
       - uses: actions/checkout@v4
@@ -33,28 +33,27 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Lint
+        run: npm run lint
+
       - name: Test
         run: npm test
 
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    needs: check
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Use Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
       - name: Build
         run: npm run build
+
+      - name: Check package contents
+        # The published tarball must contain only the built CLI/bot, README and LICENSE.
+        run: |
+          npm pack --dry-run --json > pack.json
+          node -e '
+            const [pkg] = JSON.parse(require("node:fs").readFileSync("pack.json", "utf8"));
+            const files = pkg.files.map((f) => f.path);
+            const bad = files.filter((f) => !/^(dist\/[^/]+\.(js|d\.ts|js\.map)|README\.md|LICENSE|package\.json)$/.test(f));
+            if (!files.includes("dist/mcp-stdio.js")) throw new Error("dist/mcp-stdio.js (the bin) is missing");
+            if (bad.length) throw new Error("unexpected files in the package:\n" + bad.join("\n"));
+            console.log(`package OK: ${files.length} files`);
+          '
 
   docker:
     name: Docker Build
