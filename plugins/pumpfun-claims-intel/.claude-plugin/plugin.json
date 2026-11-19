@@ -1,6 +1,6 @@
 {
   "name": "pumpfun-claims-intel",
-  "version": "1.0.5",
+  "version": "2.0.0",
   "description": "MCP server for PumpFun token info, holders, trades, bundles, creator profiles and GitHub social fee claims.",
   "author": {
     "name": "nirholas"

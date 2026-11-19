@@ -5,7 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - Pump October 2026 upgrade
+## [Unreleased]
+
+## [2.0.0] - 2026-11-19
+
+Tracks the October 2026 Pump/PumpSwap upgrade and hardens the bot and its MCP server.
+
+### Breaking
+
+- **Node.js 20.18 or later is required** (`@solana/web3.js` 3 needs it).
+- **Invalid configuration stops the bot at startup** instead of being coerced silently. See *Configuration is validated at startup* below; a deployment that relied on a misspelt or non-numeric value will no longer start until it is corrected.
+- **`HEALTH_PORT` now takes precedence over `PORT`**, as the documentation always said.
+- **`FEED_LAUNCHES`, `FEED_WHALES`, `WHALE_THRESHOLD_SOL` and `GROQ_API_KEY` are no longer read.** None of them had any effect before (see *Removed*).
+- **MCP tools reject malformed arguments** (non-base58 addresses, invalid GitHub logins, negative market caps) before calling upstream.
 
 ### Added
 
@@ -47,7 +59,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Route diagnostics to stderr in MCP stdio mode so startup and enrichment logs cannot corrupt the JSON protocol stream. Add a CLI initialization and tool-list regression test.
 
-## [Unreleased]
+## [1.0.2] - 2026-08-02
+
+Released across 1.0.2 to 1.0.4 (2026-08-02 to 2026-08-04); this section was previously left under a second "Unreleased" heading.
 
 ### Changed
 
