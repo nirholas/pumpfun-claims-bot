@@ -101,7 +101,7 @@ src/
 ├── mcp-stdio.ts          # Standalone MCP entry point (stdio transport)
 ├── claim-monitor.ts      # PumpFees program monitor (WebSocket + HTTP polling)
 ├── claim-tracker.ts      # First-claim detection + claim counter (persisted to disk)
-├── event-monitor.ts      # Pump program log decoder (graduations, launches)
+├── event-monitor.ts      # Pump program log decoder (graduations)
 ├── social-fee-index.ts   # SocialFeeIndex — maps SharingConfig PDAs → mints (~148K)
 ├── formatters.ts         # Rich HTML card builders for Telegram
 ├── pump-client.ts        # PumpFun HTTP API client

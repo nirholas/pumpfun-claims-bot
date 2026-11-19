@@ -11,7 +11,7 @@ The bot connects to Solana via WebSocket and watches specific programs for trans
 **Use cases:**
 - Run a public Telegram channel covering PumpFun developer activity
 - Track first-time GitHub developer claims for alpha signals
-- Monitor token graduations and whale trades
+- Monitor token graduations
 - Query PumpFun on-chain data from Claude, Cursor, or VS Code via the MCP server
 
 ---
@@ -22,9 +22,7 @@ The bot connects to Solana via WebSocket and watches specific programs for trans
 |------|---------|---------|-------------|
 | GitHub Social Fee Claims | `FEED_CLAIMS` | `true` | GitHub devs claiming PumpFun social fee rewards |
 | Token Graduations | `FEED_GRADUATIONS` | `false` | Tokens graduating from bonding curve to PumpAMM |
-| New Launches | `FEED_LAUNCHES` | `false` | New token launches on PumpFun |
-| Whale Alerts | `FEED_WHALES` | `false` | Large buy/sell trades above `WHALE_THRESHOLD_SOL` |
-| Fee Distributions | `FEED_FEE_DISTRIBUTIONS` | `false` | Creator fee distribution events |
+| Fee Distributions | `FEED_FEE_DISTRIBUTIONS` | `false` | `distribute_creator_fees` payouts, on a channel with `REQUIRE_GITHUB=false` |
 
 Enable any feed by setting its variable to `true` in your environment.
 

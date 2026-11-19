@@ -91,131 +91,13 @@ export function ixData(discHex: string, args: Buffer = Buffer.alloc(0)): string 
     return bs58.encode(Buffer.concat([Buffer.from(discHex, 'hex'), args]));
 }
 
-// ── Pump TradeEvent ──────────────────────────────────────────────────────
-
-export interface TradeFields {
-    mint: string;
-    solAmount: bigint;
-    tokenAmount: bigint;
-    isBuy: boolean;
-    user: string;
-    timestamp: number;
-    virtualSolReserves?: bigint;
-    virtualTokenReserves?: bigint;
-    realSolReserves?: bigint;
-    realTokenReserves?: bigint;
-    feeRecipient?: string;
-    fee?: bigint;
-    creator?: string;
-    creatorFee?: bigint;
-    ixName?: string;
-    mayhemMode?: boolean;
-    cashback?: bigint;
-    buybackFee?: bigint;
-    shareholders?: Array<{ address: string; shareBps: number }>;
-    quoteMint?: string;
-    quoteAmount?: bigint;
-    virtualQuoteReserves?: bigint;
-    realQuoteReserves?: bigint;
-    creatorFeeUnclaimed?: bigint;
-}
-
-/** The oldest TradeEvent: discriminator plus the 121-byte prefix. */
-export function tradeEventPrefix(f: TradeFields): BorshWriter {
-    return new BorshWriter()
-        .hex('bddb7fd34ee661ee')
-        .pubkey(f.mint)
-        .u64(f.solAmount)
-        .u64(f.tokenAmount)
-        .bool(f.isBuy)
-        .pubkey(f.user)
-        .i64(f.timestamp)
-        .u64(f.virtualSolReserves ?? 30_000_000_000n)
-        .u64(f.virtualTokenReserves ?? 1_073_000_000_000_000n)
-        .u64(f.realSolReserves ?? 0n)
-        .u64(f.realTokenReserves ?? 793_100_000_000_000n);
-}
-
-/** A pre-upgrade TradeEvent: prefix, fees, volume tracking, ix_name and mayhem_mode. */
-export function tradeEventLegacy(f: TradeFields): BorshWriter {
-    return tradeEventPrefix(f)
-        .pubkey(f.feeRecipient ?? key(9))
-        .u64(95)
-        .u64(f.fee ?? 0n)
-        .pubkey(f.creator ?? key(8))
-        .u64(30)
-        .u64(f.creatorFee ?? 0n)
-        .bool(true)
-        .u64(0)
-        .u64(0)
-        .u64(0)
-        .i64(0)
-        .str(f.ixName ?? 'buy')
-        .bool(f.mayhemMode ?? false);
-}
-
-/** The October 2026 TradeEvent, every field in IDL order, plus bytes from a future version. */
-export function tradeEventV3(f: TradeFields): Buffer {
-    const shareholders = f.shareholders ?? [];
-    const w = tradeEventLegacy({ ...f, feeRecipient: f.feeRecipient ?? ZERO_KEY })
-        .u64(0)
-        .u64(f.cashback ?? 0n)
-        .u64(0)
-        .u64(f.buybackFee ?? 0n)
-        .u32(shareholders.length);
-    for (const s of shareholders) w.pubkey(s.address).u16(s.shareBps);
-    return w
-        .pubkey(f.quoteMint ?? ZERO_KEY)
-        .u64(f.quoteAmount ?? f.solAmount)
-        .u64(f.virtualQuoteReserves ?? 0n)
-        .u64(f.realQuoteReserves ?? 0n)
-        .u64(0)
-        .u64(0)
-        .u64(f.creatorFeeUnclaimed ?? 0n)
-        .raw(FUTURE_TAIL)
-        .build();
-}
-
-// ── Pump curve completion ─────────────────────────────────────────────────
+// ── Pump CompleteEvent ───────────────────────────────────────────────────
 
 export function completeEvent(user: string, mint: string, bondingCurve: string, withV2Tail: boolean): Buffer {
     const w = new BorshWriter().hex('5f72619cd42e9808').pubkey(user).pubkey(mint).pubkey(bondingCurve);
     if (withV2Tail) w.i64(1_790_000_000).pubkey(ZERO_KEY).raw(FUTURE_TAIL);
     return w.build();
 }
-
-export interface PostCompleteFields {
-    user: string;
-    mint: string;
-    baseOut: bigint;
-    quoteIn: bigint;
-    fee?: bigint;
-    creatorFee?: bigint;
-}
-
-export function postCompleteBuyEvent(f: PostCompleteFields): Buffer {
-    return new BorshWriter()
-        .hex('6fb06d8b316cd5fb')
-        .pubkey(f.user)
-        .pubkey(f.mint)
-        .pubkey(key(77))
-        .pubkey(ZERO_KEY)
-        .i64(1_790_000_000)
-        .u64(f.baseOut)
-        .u64(f.quoteIn)
-        .u64(95)
-        .u64(f.fee ?? 0n)
-        .u64(30)
-        .u64(f.creatorFee ?? 0n)
-        .u64(0)
-        .u64(1n)
-        .u64(2n)
-        .u64(3n)
-        .u64(4n)
-        .build();
-}
-
-// ── Fee payouts and sweeps ────────────────────────────────────────────────
 
 export function collectCreatorFeeEvent(creator: string, amount: bigint, quoteMint?: string): Buffer {
     const w = new BorshWriter().hex('7a027f010ebf0caf').i64(1_790_000_000).pubkey(creator).u64(amount);

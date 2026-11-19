@@ -39,9 +39,8 @@ const CONFIG: ChannelBotConfig = {
     solanaRpcUrls: ['https://rpc.example'],
     pollIntervalSeconds: 30,
     logLevel: 'info',
-    feed: { claims: true, launches: false, graduations: false, whales: false, feeDistributions: false },
+    feed: { claims: true, graduations: false, feeDistributions: false },
     requireGithub: false,
-    whaleThresholdSol: 10,
     affiliates: { axiom: '', gmgn: '', padre: '' },
     mcp: { enabled: false, port: 3001 },
 };

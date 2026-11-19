@@ -9,10 +9,7 @@ import { describe, it, expect } from 'vitest';
 import {
     formatGitHubClaimFeed,
     formatCreatorClaimFeed,
-    formatLaunchFeed,
     formatGraduationFeed,
-    formatWhaleFeed,
-    formatFeeDistributionFeed,
     shortAddr,
     esc,
 } from '../formatters.js';
@@ -23,9 +20,6 @@ import {
     makeGitHubRepo,
     makeXProfile,
     makeGraduationEvent,
-    makeTokenLaunchEvent,
-    makeTradeAlertEvent,
-    makeFeeDistributionEvent,
 } from './fixtures.js';
 
 // ── formatGitHubClaimFeed ────────────────────────────────────────────────────
@@ -278,69 +272,7 @@ describe('formatCreatorClaimFeed', () => {
     });
 });
 
-// ── formatLaunchFeed ─────────────────────────────────────────────────────────
-
-describe('formatLaunchFeed', () => {
-    it('returns launch notification string', () => {
-        const event = makeTokenLaunchEvent();
-        const result = formatLaunchFeed(event, null);
-
-        expect(result).toContain('NEW TOKEN LAUNCHED');
-        expect(result).toContain('PumpCoin');
-        expect(result).toContain('$PUMP');
-        expect(result).toContain(event.mintAddress);
-    });
-
-    it('includes creator profile when provided', () => {
-        const event = makeTokenLaunchEvent();
-        const creator = {
-            wallet: 'CreatorWallet111',
-            username: 'creator1',
-            profileImage: '',
-            followers: 500,
-            totalLaunches: 10,
-            scamEstimate: 1,
-            recentCoins: [
-                { mint: 'Coin1', symbol: 'OLD', name: 'OldCoin', complete: true, usdMarketCap: 50000 },
-            ],
-        };
-        const result = formatLaunchFeed(event, creator);
-
-        expect(result).toContain('500');
-        expect(result).toContain('10 total launches');
-    });
-
-    it('shows feature flags', () => {
-        const event = makeTokenLaunchEvent({
-            mayhemMode: true,
-            cashbackEnabled: true,
-            hasGithub: true,
-        });
-        const result = formatLaunchFeed(event, null);
-
-        expect(result).toContain('Mayhem');
-        expect(result).toContain('Cashback');
-        expect(result).toContain('GitHub');
-    });
-
-    it('handles first-time launcher', () => {
-        const creator = {
-            wallet: 'NewCreator111',
-            username: '',
-            profileImage: '',
-            followers: 0,
-            totalLaunches: 1,
-            scamEstimate: 0,
-            recentCoins: [],
-        };
-        const event = makeTokenLaunchEvent();
-        const result = formatLaunchFeed(event, creator);
-
-        expect(result).toContain('First-time launcher');
-    });
-});
-
-// ── formatGraduationFeed ─────────────────────────────────────────────────────
+// ── formatGraduationFeed ──────────────────────────────────────────────────────
 
 describe('formatGraduationFeed', () => {
     it('returns imageUrl and caption', () => {
@@ -405,81 +337,7 @@ describe('formatGraduationFeed', () => {
     });
 });
 
-// ── formatWhaleFeed ──────────────────────────────────────────────────────────
-
-describe('formatWhaleFeed', () => {
-    it('shows BUY for buy trades', () => {
-        const event = makeTradeAlertEvent({ isBuy: true, solAmount: 25 });
-        const result = formatWhaleFeed(event, null);
-
-        expect(result).toContain('WHALE BUY');
-        expect(result).toContain('🟢');
-        expect(result).toContain('25.00 SOL');
-    });
-
-    it('shows SELL for sell trades', () => {
-        const event = makeTradeAlertEvent({ isBuy: false, solAmount: 30 });
-        const result = formatWhaleFeed(event, null);
-
-        expect(result).toContain('WHALE SELL');
-        expect(result).toContain('🔴');
-    });
-
-    it('shows bonding curve progress bar', () => {
-        const event = makeTradeAlertEvent({ bondingCurveProgress: 50 });
-        const result = formatWhaleFeed(event, null);
-
-        // 50% = 5 filled, 5 empty
-        expect(result).toContain('█████░░░░░');
-    });
-
-    it('shows fee info', () => {
-        const event = makeTradeAlertEvent({ fee: 0.155, creatorFee: 0.05 });
-        const result = formatWhaleFeed(event, null);
-
-        expect(result).toContain('0.1550 SOL');
-        expect(result).toContain('0.0500 SOL');
-    });
-});
-
-// ── formatFeeDistributionFeed ────────────────────────────────────────────────
-
-describe('formatFeeDistributionFeed', () => {
-    it('shows distribution details', () => {
-        const event = makeFeeDistributionEvent();
-        const result = formatFeeDistributionFeed(event, null);
-
-        expect(result).toContain('FEES DISTRIBUTED');
-        expect(result).toContain('5.0000 SOL');
-    });
-
-    it('lists shareholders with percentages', () => {
-        const event = makeFeeDistributionEvent({
-            shareholders: [
-                { address: 'Share1111111111111111111111111111111111111111', shareBps: 7000 },
-                { address: 'Share2222222222222222222222222222222222222222', shareBps: 3000 },
-            ],
-        });
-        const result = formatFeeDistributionFeed(event, null);
-
-        expect(result).toContain('70.0%');
-        expect(result).toContain('30.0%');
-        expect(result).toContain('Shareholders (2)');
-    });
-
-    it('truncates to 5 shareholders and shows remainder', () => {
-        const shareholders = Array.from({ length: 8 }, (_, i) => ({
-            address: `Share${i}111111111111111111111111111111111111111`,
-            shareBps: 1250,
-        }));
-        const event = makeFeeDistributionEvent({ shareholders });
-        const result = formatFeeDistributionFeed(event, null);
-
-        expect(result).toContain('+3 more');
-    });
-});
-
-// ── Utility functions ────────────────────────────────────────────────────────
+// ── Utilities ────────────────────────────────────────────────────────────────
 
 describe('shortAddr', () => {
     it('truncates long addresses', () => {

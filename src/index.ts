@@ -466,7 +466,6 @@ async function main(): Promise<void> {
     if (config.feed.graduations) {
         eventMonitor = new EventMonitor(
             config,
-            () => {}, // launches — not used
             async (event: GraduationEvent) => {
                 try {
                     log.info('🎓 Graduation detected: %s (migration=%s)', event.mintAddress, event.isMigration);
@@ -508,8 +507,6 @@ async function main(): Promise<void> {
                     log.error('Graduation handler error: %s', err);
                 }
             },
-            () => {}, // whales — not used
-            () => {}, // fee distributions — not used
         );
     }
 

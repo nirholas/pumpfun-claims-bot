@@ -40,9 +40,8 @@ const CONFIG = {
     solanaRpcUrls: ['https://rpc.example'],
     pollIntervalSeconds: 3600,
     logLevel: 'info',
-    feed: { claims: false, launches: false, graduations: true, whales: false, feeDistributions: false },
+    feed: { claims: false, graduations: true, feeDistributions: false },
     requireGithub: true,
-    whaleThresholdSol: 10,
     affiliates: { axiom: '', gmgn: '', padre: '' },
     mcp: { enabled: false, port: 3001 },
 } satisfies ChannelBotConfig;
@@ -70,7 +69,7 @@ describe('EventMonitor polling', () => {
         rpcState.logsBySignature.set('sigA', graduationLogs(mint));
         const { EventMonitor } = await import('../event-monitor.js');
         const seen: GraduationEvent[] = [];
-        const monitor = new EventMonitor(CONFIG, () => {}, (e) => { seen.push(e); }, () => {}, () => {});
+        const monitor = new EventMonitor(CONFIG, (e) => { seen.push(e); });
 
         await monitor.start();
         await vi.waitFor(() => expect(seen).toHaveLength(1));

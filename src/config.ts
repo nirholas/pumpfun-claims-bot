@@ -24,15 +24,11 @@ export interface ChannelBotConfig {
     /** Feed toggles */
     feed: {
         claims: boolean;
-        launches: boolean;
         graduations: boolean;
-        whales: boolean;
         feeDistributions: boolean;
     };
     /** Only post claims for tokens that have GitHub URLs in their description */
     requireGithub: boolean;
-    /** Minimum SOL for whale alerts */
-    whaleThresholdSol: number;
     /** Affiliate ref codes for trading links */
     affiliates: {
         axiom: string;
@@ -101,15 +97,9 @@ export function loadConfig(): ChannelBotConfig {
         claims: (process.env.FEED_CLAIMS || 'true').toLowerCase() === 'true',
         feeDistributions: (process.env.FEED_FEE_DISTRIBUTIONS || 'false').toLowerCase() === 'true',
         graduations: (process.env.FEED_GRADUATIONS || 'false').toLowerCase() === 'true',
-        launches: (process.env.FEED_LAUNCHES || 'false').toLowerCase() === 'true',
-        whales: (process.env.FEED_WHALES || 'false').toLowerCase() === 'true',
     };
 
     const requireGithub = (process.env.REQUIRE_GITHUB || 'true').toLowerCase() === 'true';
-
-    const whaleThresholdSol = Number.parseFloat(
-        process.env.WHALE_THRESHOLD_SOL || '10',
-    );
 
     const affiliates = {
         axiom: process.env.AXIOM_REF ?? '',
@@ -134,7 +124,6 @@ export function loadConfig(): ChannelBotConfig {
         solanaRpcUrls,
         solanaWsUrl,
         telegramToken,
-        whaleThresholdSol,
     };
 }
 

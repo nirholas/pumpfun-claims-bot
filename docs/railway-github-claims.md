@@ -293,5 +293,3 @@ Once the basic setup works, you can add these extras by adding more variables in
 | Post AI-written summaries on each card | `GROQ_API_KEY=gsk_...` (free from [console.groq.com](https://console.groq.com)) |
 | Earn affiliate commissions on Axiom links | `AXIOM_REF=your-ref-code` |
 | Also post when tokens graduate | `FEED_GRADUATIONS=true` |
-| Also post new token launches | `FEED_LAUNCHES=true` |
-| Alert on big trades | `FEED_WHALES=true` and `WHALE_THRESHOLD_SOL=50` |

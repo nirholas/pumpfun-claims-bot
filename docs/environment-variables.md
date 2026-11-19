@@ -39,11 +39,8 @@ All feeds default to `false` except `FEED_CLAIMS`.
 |----------|---------|-------------|
 | `FEED_CLAIMS` | `true` | GitHub social fee PDA claim cards |
 | `FEED_GRADUATIONS` | `false` | Token graduation cards (bonding curve → PumpAMM) |
-| `FEED_LAUNCHES` | `false` | New token launch cards |
-| `FEED_WHALES` | `false` | Whale buy/sell alert cards |
-| `FEED_FEE_DISTRIBUTIONS` | `false` | Creator fee distribution event cards |
+| `FEED_FEE_DISTRIBUTIONS` | `false` | Post `distribute_creator_fees` payouts (only when `REQUIRE_GITHUB=false`) |
 | `REQUIRE_GITHUB` | `true` | When `true`, skip claims that have no GitHub social fee PDA (filters out non-GitHub claims) |
-| `WHALE_THRESHOLD_SOL` | `10` | Minimum SOL trade size to trigger a whale alert |
 
 ---
 
@@ -115,11 +112,8 @@ SOLANA_RPC_URLS=https://mainnet.helius-rpc.com/?api-key=KEY1,https://backup-rpc.
 # ── Feed Toggles ──────────────────────────────────────────
 FEED_CLAIMS=true
 FEED_GRADUATIONS=false
-FEED_LAUNCHES=false
-FEED_WHALES=false
 FEED_FEE_DISTRIBUTIONS=false
 REQUIRE_GITHUB=true
-WHALE_THRESHOLD_SOL=10
 
 # ── Enrichment APIs ───────────────────────────────────────
 GITHUB_TOKEN=ghp_your_token

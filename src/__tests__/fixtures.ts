@@ -3,7 +3,7 @@
  * Provides factory functions for all event and context types.
  */
 
-import type { FeeClaimEvent, GraduationEvent, TokenLaunchEvent, TradeAlertEvent, FeeDistributionEvent } from '../types.js';
+import type { FeeClaimEvent, GraduationEvent } from '../types.js';
 import type { ClaimFeedContext, CreatorClaimContext } from '../formatters.js';
 import type { GitHubRepoInfo, GitHubUserInfo } from '../github-client.js';
 import type { ClaimSummaryInput } from '../groq-client.js';
@@ -222,67 +222,3 @@ export function makeGraduationEvent(overrides: Partial<GraduationEvent> = {}): G
 }
 
 // ── Token Launch Event ───────────────────────────────────────────────────────
-
-export function makeTokenLaunchEvent(overrides: Partial<TokenLaunchEvent> = {}): TokenLaunchEvent {
-    return {
-        txSignature: '5xLaunchSig123',
-        slot: 300_000_050,
-        timestamp: Math.floor(Date.now() / 1000),
-        mintAddress: 'MiNt111111111111111111111111111111111111111111',
-        creatorWallet: 'CreatorWallet111111111111111111111111111111111',
-        name: 'PumpCoin',
-        symbol: 'PUMP',
-        description: 'Community token',
-        metadataUri: 'https://arweave.net/test',
-        hasGithub: true,
-        githubUrls: ['https://github.com/testdev/pump-token'],
-        mayhemMode: false,
-        cashbackEnabled: false,
-        ...overrides,
-    };
-}
-
-// ── Trade Alert Event ────────────────────────────────────────────────────────
-
-export function makeTradeAlertEvent(overrides: Partial<TradeAlertEvent> = {}): TradeAlertEvent {
-    return {
-        txSignature: '5xTradeSig123',
-        slot: 300_000_075,
-        timestamp: Math.floor(Date.now() / 1000),
-        mintAddress: 'MiNt111111111111111111111111111111111111111111',
-        user: 'Trader111111111111111111111111111111111111111111',
-        creator: 'CreatorWallet111111111111111111111111111111111',
-        isBuy: true,
-        solAmount: 15.5,
-        tokenAmount: 1_500_000,
-        fee: 0.155,
-        creatorFee: 0.05,
-        virtualSolReserves: 30_000_000_000,
-        virtualTokenReserves: 400_000_000_000_000,
-        realSolReserves: 20_000_000_000,
-        realTokenReserves: 300_000_000_000_000,
-        mayhemMode: false,
-        marketCapSol: 300,
-        bondingCurveProgress: 72,
-        ...overrides,
-    };
-}
-
-// ── Fee Distribution Event ───────────────────────────────────────────────────
-
-export function makeFeeDistributionEvent(overrides: Partial<FeeDistributionEvent> = {}): FeeDistributionEvent {
-    return {
-        txSignature: '5xDistSig123',
-        slot: 300_000_200,
-        timestamp: Math.floor(Date.now() / 1000),
-        mintAddress: 'MiNt111111111111111111111111111111111111111111',
-        bondingCurve: 'BC111111111111111111111111111111111111111111',
-        admin: 'Admin111111111111111111111111111111111111111111',
-        distributedSol: 5.0,
-        shareholders: [
-            { address: 'Share1', shareBps: 7000 },
-            { address: 'Share2', shareBps: 3000 },
-        ],
-        ...overrides,
-    };
-}

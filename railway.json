@@ -35,27 +35,15 @@
                 "required": false
             },
             "FEED_CLAIMS": {
-                "description": "Show fee claim events (default: true)",
-                "required": false
-            },
-            "FEED_LAUNCHES": {
-                "description": "Show new token launches (default: true)",
+                "description": "Post GitHub social fee claim cards (default: true)",
                 "required": false
             },
             "FEED_GRADUATIONS": {
-                "description": "Show graduation events (default: true)",
-                "required": false
-            },
-            "FEED_WHALES": {
-                "description": "Show whale trade alerts (default: true)",
+                "description": "Post token graduation cards (default: false)",
                 "required": false
             },
             "FEED_FEE_DISTRIBUTIONS": {
-                "description": "Show fee distribution events (default: true)",
-                "required": false
-            },
-            "WHALE_THRESHOLD_SOL": {
-                "description": "Minimum SOL for whale alerts (default: 10)",
+                "description": "Post distribute_creator_fees payouts when REQUIRE_GITHUB=false (default: false)",
                 "required": false
             },
             "LOG_LEVEL": {
@@ -65,4 +53,3 @@
         }
     }
 }
-

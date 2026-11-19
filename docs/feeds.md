@@ -1,6 +1,6 @@
 # Feed Types
 
-The bot supports five feed types. Each is toggled independently via an environment variable.
+The bot posts two kinds of card, each toggled by an environment variable. Creator-fee claims can also be posted on a channel that is not GitHub-only.
 
 ---
 
@@ -50,42 +50,11 @@ Enable: `FEED_GRADUATIONS=true`
 
 ---
 
-## New Token Launches (`FEED_LAUNCHES`)
+## Creator Fee Claims (`REQUIRE_GITHUB=false`)
 
-**Default: `false`**
+**Default: off**
 
-Posts a card when a new token is created on PumpFun.
-
-Enable: `FEED_LAUNCHES=true`
-
----
-
-## Whale Alerts (`FEED_WHALES`)
-
-**Default: `false`**
-
-Posts a card when a trade exceeds the configured SOL threshold.
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `FEED_WHALES` | `false` | Enable whale alerts |
-| `WHALE_THRESHOLD_SOL` | `10` | Minimum SOL trade size to trigger an alert |
-
-Example: to alert on trades over 50 SOL:
-```
-FEED_WHALES=true
-WHALE_THRESHOLD_SOL=50
-```
-
----
-
-## Fee Distributions (`FEED_FEE_DISTRIBUTIONS`)
-
-**Default: `false`**
-
-Posts a card when creator fee distribution events fire on the PumpFees program.
-
-Enable: `FEED_FEE_DISTRIBUTIONS=true`
+With `REQUIRE_GITHUB=false`, ordinary creator-fee collections (`collect_creator_fee`, `collect_coin_creator_fee`) are posted as well as GitHub social fee claims. `distribute_creator_fees` payouts are posted only when `FEED_FEE_DISTRIBUTIONS=true` is also set. On a GitHub-only channel (the default) none of these are ever posted.
 
 ---
 
@@ -96,9 +65,7 @@ Set any combination:
 ```env
 FEED_CLAIMS=true
 FEED_GRADUATIONS=true
-FEED_WHALES=true
-WHALE_THRESHOLD_SOL=25
-FEED_LAUNCHES=false
+REQUIRE_GITHUB=false
 FEED_FEE_DISTRIBUTIONS=false
 ```
 

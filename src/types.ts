@@ -111,8 +111,6 @@ export const CLAIM_EVENT_DISCRIMINATORS: Record<string, { label: string; isCreat
     '3212c141edd2eaec': { isCreatorClaim: true, label: 'SocialFeePdaClaimed' },
 };
 
-export const DEFAULT_GRADUATION_SOL_THRESHOLD = 85;
-
 // ============================================================================
 // Events
 // ============================================================================
@@ -152,23 +150,6 @@ export interface FeeClaimEvent {
     quoteMint?: string;
 }
 
-export interface TokenLaunchEvent {
-    txSignature: string;
-    slot: number;
-    timestamp: number;
-    mintAddress: string;
-    creatorWallet: string;
-    name: string;
-    symbol: string;
-    description: string;
-    metadataUri: string;
-    hasGithub: boolean;
-    githubUrls: string[];
-    mayhemMode: boolean;
-    cashbackEnabled: boolean;
-    metadata?: Record<string, unknown>;
-}
-
 export interface GraduationEvent {
     txSignature: string;
     slot: number;
@@ -182,45 +163,3 @@ export interface GraduationEvent {
     poolMigrationFee?: number;
     poolAddress?: string;
 }
-
-export interface TradeAlertEvent {
-    txSignature: string;
-    slot: number;
-    timestamp: number;
-    mintAddress: string;
-    user: string;
-    creator: string;
-    isBuy: boolean;
-    solAmount: number;
-    tokenAmount: number;
-    fee: number;
-    creatorFee: number;
-    virtualSolReserves: number;
-    virtualTokenReserves: number;
-    realSolReserves: number;
-    realTokenReserves: number;
-    mayhemMode: boolean;
-    marketCapSol: number;
-    bondingCurveProgress: number;
-    /** TradeEvent ix_name: buy, sell, buy_v3, sell_v3, buy_exact_quote_in_v3, multi_hop_swap, ... */
-    ixName?: string;
-    /** True when this buy completed the bonding curve (CompleteEvent in the same transaction). */
-    completedCurve?: boolean;
-    /** SOL spent on the curve part alone, before the post-complete pool part. */
-    curveSolAmount?: number;
-    /** SOL and tokens of the pool part of a completing buy (PostCompleteBuyEvent), already included in solAmount and tokenAmount. */
-    postCompleteSolAmount?: number;
-    postCompleteTokenAmount?: number;
-}
-
-export interface FeeDistributionEvent {
-    txSignature: string;
-    slot: number;
-    timestamp: number;
-    mintAddress: string;
-    bondingCurve: string;
-    admin: string;
-    distributedSol: number;
-    shareholders: Array<{ address: string; shareBps: number }>;
-}
-

@@ -209,7 +209,7 @@ Claim instructions decoded (v1 and the V2 variants from the October 2026 upgrade
 
 `sweep_creator_fee` and `sweep_protocol_fee` (Pump and PumpAMM) are recognised but are never counted as a claim: a sweep only moves fees the curve or pool still holds into the creator vault, and pays nobody. A claim transaction usually carries a sweep first, then the claim; only the claim (vault to creator) is reported, and each claim is paid by its own event, so nothing is counted twice. A sweep-only transaction posts nothing.
 
-Event decoders read the fields they need from the known prefix and ignore trailing bytes, so both pre-upgrade events and the longer October 2026 layouts decode. Trades recognise the `buy_v3`, `sell_v3`, `buy_exact_quote_in_v3` and `multi_hop_swap` instruction names. Since the upgrade a buy can complete the bonding curve and keep buying on the new PumpSwap pool in the same instruction (synthetic migration, before `migrate` runs); the whale feed adds that `PostCompleteBuyEvent` amount to the buyer's total and marks the trade as having completed the curve.
+Event decoders read the fields they need from the known prefix and ignore trailing bytes, so both pre-upgrade events and the longer October 2026 layouts decode. Since synthetic migration a curve completes inside the completing buy (`CompleteEvent`) and `migrate` later opens the pool (`CompletePumpAmmMigrationEvent`); the graduation feed posts each mint once, on whichever event it sees first.
 
 ## Install
 
@@ -280,9 +280,7 @@ SOLANA_RPC_URLS=https://mainnet.helius-rpc.com/?api-key=key1,https://your-other-
 # ── Feed Toggles (all default false except FEED_CLAIMS) ───
 FEED_CLAIMS=true                 # GitHub social fee claims (default: true)
 FEED_GRADUATIONS=false           # Token graduations to PumpAMM (default: false)
-FEED_LAUNCHES=false              # New token launches (default: false)
-FEED_WHALES=false                # Large buy/sell whale alerts (default: false)
-FEED_FEE_DISTRIBUTIONS=false     # Creator fee distribution events (default: false)
+FEED_FEE_DISTRIBUTIONS=false     # distribute_creator_fees payouts, with REQUIRE_GITHUB=false (default: false)
 
 # ── Claim Filter ──────────────────────────────────────────
 REQUIRE_GITHUB=true              # Only post claims with GitHub social fee PDA (default: true)
@@ -304,7 +302,6 @@ GROQ_API_KEY=gsk_your_key        # Groq API for AI one-liner summaries
 
 # ── Tuning ────────────────────────────────────────────────
 POLL_INTERVAL_SECONDS=30         # HTTP polling fallback interval (default: 30)
-WHALE_THRESHOLD_SOL=10           # Minimum SOL for whale alerts (default: 10)
 LOG_LEVEL=info                   # debug | info | warn | error (default: info)
 
 # ── Health Check ──────────────────────────────────────────
@@ -322,9 +319,7 @@ LOG_LEVEL=info                   # debug | info | warn | error (default: info)
 | `SOLANA_RPC_URLS` | — | — | Comma-separated fallback RPC URLs — auto-rotates on 429 / 5xx / timeout |
 | `FEED_CLAIMS` | — | `true` | Post GitHub social fee claim cards |
 | `FEED_GRADUATIONS` | — | `false` | Post token graduation cards |
-| `FEED_LAUNCHES` | — | `false` | Post new token launch cards |
-| `FEED_WHALES` | — | `false` | Post whale buy/sell alerts |
-| `FEED_FEE_DISTRIBUTIONS` | — | `false` | Post creator fee distribution events |
+| `FEED_FEE_DISTRIBUTIONS` | — | `false` | Post `distribute_creator_fees` payouts (only when `REQUIRE_GITHUB=false`) |
 | `REQUIRE_GITHUB` | — | `true` | Skip claims that have no GitHub social fee PDA |
 | `GITHUB_TOKEN` | — | — | GitHub PAT — [create one here](https://github.com/settings/tokens/new?description=pumpfun-claims-bot&scopes=) (no scopes needed) — raises rate limit from 60 → 5000 req/hr |
 | `GROQ_API_KEY` | — | — | Groq API key for AI one-liner summaries — [get a free key at console.groq.com](https://console.groq.com/keys) |
@@ -334,7 +329,6 @@ LOG_LEVEL=info                   # debug | info | warn | error (default: info)
 | `GMGN_REF` | — | — | Affiliate ref code for [GMGN](https://gmgn.ai) trading links |
 | `PADRE_REF` | — | — | Affiliate ref code for [Padre](https://padre.bot) trading links |
 | `POLL_INTERVAL_SECONDS` | — | `30` | HTTP polling interval when WebSocket is unavailable |
-| `WHALE_THRESHOLD_SOL` | — | `10` | Minimum SOL trade size to trigger a whale alert |
 | `LOG_LEVEL` | — | `info` | Log verbosity: `debug` \| `info` \| `warn` \| `error` |
 | `PORT` | — | `3000` | Health check HTTP server port — set automatically by [Railway](https://railway.app) |
 | `MCP_ENABLED` | — | `false` | Enable the MCP (Model Context Protocol) server for AI assistant integrations |
@@ -420,7 +414,7 @@ pumpfun-claims-bot/
 │   ├── claim-tracker.ts      # First-claim detection + claim counter (persisted to disk)
 │   ├── credibility.ts        # Deterministic 0-100 credibility scoring
 │   ├── dev-reputation.ts     # Persistent per-developer track record store
-│   ├── event-monitor.ts      # Pump program log decoder (graduations, launches)
+│   ├── event-monitor.ts      # Pump program log decoder (graduations)
 │   ├── social-fee-index.ts   # SocialFeeIndex — maps SharingConfig PDAs → mints (~148K)
 │   ├── formatters.ts         # Rich HTML card builders for Telegram
 │   ├── pump-client.ts        # PumpFun HTTP API client (token info, creator profiles)

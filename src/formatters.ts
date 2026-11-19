@@ -7,13 +7,7 @@
 
 import type { GitHubRepoInfo, GitHubUserInfo } from './github-client.js';
 import type { CreatorProfile, TokenInfo, TokenTradeInfo, HolderDetails, DevWalletInfo, PoolLiquidityInfo, BundleInfo, SameNameToken } from './pump-client.js';
-import type {
-    FeeClaimEvent,
-    FeeDistributionEvent,
-    GraduationEvent,
-    TokenLaunchEvent,
-    TradeAlertEvent,
-} from './types.js';
+import type { FeeClaimEvent, GraduationEvent } from './types.js';
 import { QUOTE_MINT_INFO } from './types.js';
 import type { XProfile } from './x-client.js';
 import { getInfluencerTier, formatFollowerCount, influencerLabel } from './x-client.js';
@@ -628,79 +622,6 @@ export function formatCreatorClaimFeed(ctx: CreatorClaimContext): { imageUrl: st
 
 
 // ============================================================================
-// Token Launch
-// ============================================================================
-
-export function formatLaunchFeed(
-    event: TokenLaunchEvent,
-    creator: CreatorProfile | null,
-): string {
-    const lines: string[] = [];
-
-    lines.push(`🚀 <b>NEW TOKEN LAUNCHED</b>`);
-    lines.push('');
-
-    const pumpLink = `<a href="https://pump.fun/coin/${event.mintAddress}">${esc(event.name || 'Unknown')}</a>`;
-    lines.push(`🪙  <b>${pumpLink}</b>  <code>$${esc(event.symbol || '???')}</code>`);
-    lines.push(`CA: <code>${event.mintAddress}</code>`);
-
-    if (event.description) {
-        const desc = event.description.length > 120
-            ? event.description.slice(0, 117) + '...'
-            : event.description;
-        lines.push(`     ${esc(desc)}`);
-    }
-
-    lines.push('');
-
-    const profileLink = `<a href="https://pump.fun/profile/${event.creatorWallet}">${shortAddr(event.creatorWallet)}</a>`;
-    const usernameTag = creator?.username ? ` (<a href="https://pump.fun/profile/${event.creatorWallet}">${esc(creator.username)}</a>)` : '';
-    lines.push(`👤  Creator: ${profileLink}${usernameTag}`);
-
-    if (creator) {
-        if (creator.followers > 0) {
-            lines.push(`     ${creator.followers.toLocaleString()} followers`);
-        }
-        if (creator.totalLaunches > 1) {
-            const graduated = creator.recentCoins.filter((c) => c.complete).length;
-            const gradLine = graduated > 0 ? ` (${graduated} graduated)` : '';
-            const past = creator.recentCoins
-                .filter((c) => c.mint !== event.mintAddress)
-                .slice(0, 3)
-                .map((c) => `<a href="https://pump.fun/coin/${c.mint}">${esc(c.symbol)}</a>`)
-                .join(', ');
-            lines.push(`     ${creator.totalLaunches} total launches${gradLine}${past ? ` — recent: ${past}` : ''}`);
-        } else if (creator.totalLaunches <= 1) {
-            lines.push(`     🆕 First-time launcher`);
-        }
-    }
-
-    lines.push('');
-
-    const features: string[] = [];
-    if (event.mayhemMode) features.push('⚡ Mayhem');
-    if (event.cashbackEnabled) features.push('💸 Cashback');
-    if (event.hasGithub) features.push('🌐 GitHub');
-    if (features.length > 0) {
-        lines.push(`⚙️  ${features.join('  ·  ')}`);
-    }
-
-    if (event.hasGithub && event.githubUrls.length > 0) {
-        lines.push(`     ${event.githubUrls.slice(0, 2).map((u) => `<a href="${esc(u)}">GitHub</a>`).join(', ')}`);
-    }
-
-    lines.push('');
-
-    const txLink = `<a href="https://solscan.io/tx/${event.txSignature}">TX</a>`;
-    const solscanLink = `<a href="https://solscan.io/token/${event.mintAddress}">Solscan</a>`;
-    const pfLink = `<a href="https://pump.fun/coin/${event.mintAddress}">pump.fun</a>`;
-    lines.push(`🔗  ${txLink}  ·  ${solscanLink}  ·  ${pfLink}`);
-    lines.push(`🕐  ${formatTime(event.timestamp)}`);
-
-    return lines.join('\n');
-}
-
-// ============================================================================
 // Graduation
 // ============================================================================
 
@@ -896,104 +817,6 @@ export function formatGraduationFeed(
 }
 
 // ============================================================================
-// Whale Trade
-// ============================================================================
-
-export function formatWhaleFeed(
-    event: TradeAlertEvent,
-    token: TokenInfo | null,
-): string {
-    const lines: string[] = [];
-
-    const emoji = event.isBuy ? '🟢' : '🔴';
-    const action = event.isBuy ? 'BUY' : 'SELL';
-    lines.push(`🐋 <b>WHALE ${action}</b>`);
-    lines.push('');
-
-    const coinName = token?.name ?? 'Unknown';
-    const coinTicker = token?.symbol ?? '???';
-    const pumpLink = `<a href="https://pump.fun/coin/${event.mintAddress}">${esc(coinName)}</a>`;
-    lines.push(`🪙  <b>${pumpLink}</b>  <code>$${esc(coinTicker)}</code>`);
-
-    lines.push('');
-
-    lines.push(`${emoji}  <b>${event.solAmount.toFixed(2)} SOL</b>`);
-    if (event.completedCurve) {
-        // Synthetic migration: the buy completed the curve, then kept buying from the pool part.
-        const split = event.postCompleteSolAmount
-            ? ` (${(event.curveSolAmount ?? 0).toFixed(2)} SOL on the curve + ${event.postCompleteSolAmount.toFixed(2)} SOL after it)`
-            : '';
-        lines.push(`🎓  Completed the bonding curve${split}`);
-    }
-
-    const trader = `<a href="https://pump.fun/profile/${event.user}">${shortAddr(event.user)}</a>`;
-    lines.push(`👤  Trader: ${trader}`);
-
-    const mcap = token?.usdMarketCap
-        ? `$${formatCompact(token.usdMarketCap)}`
-        : `~${event.marketCapSol.toFixed(1)} SOL`;
-    const bcp = Math.round(event.bondingCurveProgress);
-    const filled = Math.round(event.bondingCurveProgress / 10);
-    const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
-    lines.push(`💹  Mcap: ${mcap}  ·  [${bar}] ${bcp > 0 ? `${bcp}%` : '≤1%'}`);
-    lines.push(`💰  Fee: ${event.fee.toFixed(4)} SOL  ·  Creator: ${event.creatorFee.toFixed(4)} SOL`);
-
-    lines.push('');
-
-    const txLink = `<a href="https://solscan.io/tx/${event.txSignature}">TX</a>`;
-    const pfLink = `<a href="https://pump.fun/coin/${event.mintAddress}">pump.fun</a>`;
-    lines.push(`🔗  ${txLink}  ·  ${pfLink}`);
-    lines.push(`🕐  ${formatTime(event.timestamp)}`);
-
-    return lines.join('\n');
-}
-
-// ============================================================================
-// Fee Distribution
-// ============================================================================
-
-export function formatFeeDistributionFeed(
-    event: FeeDistributionEvent,
-    token: TokenInfo | null,
-): string {
-    const lines: string[] = [];
-
-    lines.push(`💎 <b>FEES DISTRIBUTED</b>`);
-    lines.push('');
-
-    const coinName = token?.name ?? 'Unknown';
-    const coinTicker = token?.symbol ?? '???';
-    const pumpLink = `<a href="https://pump.fun/coin/${event.mintAddress}">${esc(coinName)}</a>`;
-    lines.push(`🪙  <b>${pumpLink}</b>  <code>$${esc(coinTicker)}</code>`);
-
-    lines.push('');
-
-    lines.push(`💰  <b>${event.distributedSol.toFixed(4)} SOL</b> distributed`);
-    lines.push(`👤  Admin: <code>${shortAddr(event.admin)}</code>`);
-
-    if (event.shareholders && event.shareholders.length > 0) {
-        lines.push(`👥  Shareholders (${event.shareholders.length}):`);
-        for (const s of event.shareholders.slice(0, 5)) {
-            const pctVal = (s.shareBps / 100).toFixed(1);
-            const shareLink = `<a href="https://pump.fun/profile/${s.address}">${shortAddr(s.address)}</a>`;
-            lines.push(`     • ${shareLink}  —  ${pctVal}%`);
-        }
-        if (event.shareholders && event.shareholders.length > 5) {
-            lines.push(`     <i>... +${event.shareholders.length - 5} more</i>`);
-        }
-    }
-
-    lines.push('');
-
-    const txLink = `<a href="https://solscan.io/tx/${event.txSignature}">TX</a>`;
-    const pfLink = `<a href="https://pump.fun/coin/${event.mintAddress}">pump.fun</a>`;
-    lines.push(`🔗  ${txLink}  ·  ${pfLink}`);
-    lines.push(`🕐  ${formatTime(event.timestamp)}`);
-
-    return lines.join('\n');
-}
-
-// ============================================================================
 // Utilities
 // ============================================================================
 
@@ -1076,12 +899,6 @@ function formatTime(unixSeconds: number): string {
 
 
 
-function formatDateTime(unixSeconds: number): string {
-    const d = new Date(unixSeconds * 1000);
-    const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getUTCMonth()];
-    return `${d.getUTCDate()} ${mon} ${d.getUTCFullYear()} ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')} UTC`;
-}
-
 function timeAgo(unixSeconds: number): string {
     const now = Math.floor(Date.now() / 1000);
     const diff = now - unixSeconds;
@@ -1120,14 +937,6 @@ function formatPriceUsd(price: number): string {
     return price.toFixed(8);
 }
 
-function formatDuration(seconds: number): string {
-    if (seconds < 60) return `${seconds}s`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
-    return `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`;
-}
-
-/** Extract @handle from a Twitter/X URL. */
 /**
  * Extract a clean X/Twitter handle from a URL or raw username string.
  * Handles full URLs, tweet status links, and bare usernames.
