@@ -3,10 +3,10 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
-COPY package.json ./
-RUN npm install
+COPY package.json package-lock.json ./
+RUN npm ci
 
-COPY tsconfig.json ./
+COPY tsconfig.json tsconfig.build.json ./
 COPY src/ src/
 RUN npm run build
 
@@ -20,8 +20,8 @@ WORKDIR /app
 
 RUN addgroup -S bot && adduser -S bot -G bot
 
-COPY package.json ./
-RUN npm install --omit=dev && npm cache clean --force
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=build /app/dist dist/
 
