@@ -15,7 +15,6 @@ PumpFun GitHub social fee claim monitor - real-time Telegram feed for first-time
 
 - `docs/`
 - `leaderboard-bot/`
-- `packages/`
 - `src/`
 - `web/`
 - `README.md`

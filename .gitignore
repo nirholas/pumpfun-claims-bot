@@ -7,3 +7,4 @@ data/
 mcp-publisher
 .mcp*
 .turbo/
+*.tsbuildinfo

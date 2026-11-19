@@ -413,8 +413,7 @@ pumpfun-claims-bot/
 │   ├── types.ts              # Program IDs, discriminators, event types
 │   └── logger.ts             # Leveled console logger
 ├── src/__tests__/            # Vitest suites (203 tests) + shared fixtures
-├── packages/web/             # React dashboard, mock-data build (see Web Dashboard)
-├── web/web/                  # React dashboard, live-SSE build (see Web Dashboard)
+├── web/web/                  # React dashboard prototype (see Web Dashboard)
 ├── leaderboard-bot/          # Separate Telegram bot: GitHub dev earnings leaderboard
 ├── data/                     # Persisted state (gitignored, Railway volume mount)
 │   └── github-first-claims.json
@@ -571,26 +570,22 @@ Pipeline: 15 total → 8 social → 3 first / 5 repeat → 8 posted (skip: 7 cas
 
 ## Web Dashboard
 
-Two React frontends are checked in, and they are not the same app:
+`web/web/` holds a React dashboard (React 18, React Router 7, Vite, Tailwind).
+Build it with `cd web/web && npm ci && npm run build`; deep links such as
+`/dashboard` are client-side routes, so a static host must rewrite unknown paths
+to `index.html` (`vercel.json` does this on Vercel).
 
-| Directory | What it is | Build |
-|---|---|---|
-| `web/web/` | The full dashboard: SSE event stream, watch lists, SEO assets (`robots.txt`, `sitemap.xml`, `llms.txt`). Has its own lockfile, so `npm ci` works. | `cd web/web && npm ci && npm run build` |
-| `packages/web/` | An earlier, smaller copy of the same UI. Its Dashboard renders generated sample events, with no SSE client. | `cd packages/web && npm ci && npm run build` |
-
-The features listed below describe `web/web/`. Both directories build clean today;
-consolidating them onto one is still open work.
-
-Deep links (`/dashboard`, `/docs`, ...) are client-side routes, so any static host
-must rewrite unknown paths to `index.html`. Each app now ships a `vercel.json` with
-that rewrite; on a non-Vercel host, configure the equivalent SPA fallback.
+The dashboard expects an API this bot does not serve: an SSE stream at
+`/api/v1/claims/stream` and watch lists at `/api/v1/watches` (set `VITE_API_URL`
+to point at one). Against this bot it falls back to simulated events, so treat it
+as a UI prototype, not a live view of the channel.
 
 ### Pages
 
 | Page | Route | Description |
 |------|-------|-------------|
 | Home | `/` | Landing page with project overview |
-| Dashboard | `/dashboard` | Live event feed with SSE streaming |
+| Dashboard | `/dashboard` | Event feed (SSE when an API is configured, simulated otherwise) |
 | Create Coin | `/create` | Token creation interface |
 | Docs | `/docs` | API documentation & Telegram commands |
 | Packages | `/packages` | Package browser |
@@ -610,8 +605,8 @@ that rewrite; on a non-Vercel host, configure the equivalent SPA fallback.
 | Layer | Technology |
 |-------|------------|
 | Framework | React 18 |
-| Router | React Router |
-| Build | Vite 5 |
+| Router | React Router 7 |
+| Build | Vite 6 |
 | Styling | Tailwind CSS |
 | Language | TypeScript |
 
