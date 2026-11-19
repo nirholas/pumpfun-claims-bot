@@ -18,7 +18,8 @@ vi.mock('node:fs', () => ({
 vi.mock('../logger.js', () => ({
   log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
-vi.mock('../x-client.js', () => ({
+vi.mock('../x-client.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../x-client.js')>()),
   getInfluencerTier: vi.fn(() => null),
   formatFollowerCount: vi.fn((n: number) => `${n}`),
   influencerLabel: vi.fn(() => ''),

@@ -1,14 +1,16 @@
 /**
  * Tests for X/Twitter client — influencer tiers, follower formatting, labels.
  *
- * These test the pure utility functions which don't require API access.
+ * Profile fetches run against a stubbed fetch; nothing reaches x.com.
  */
 
-import { describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import {
     getInfluencerTier,
     formatFollowerCount,
     influencerLabel,
+    isXCommunityUrl,
+    parseXHandle,
     type InfluencerTier,
 } from '../x-client.js';
 
@@ -98,5 +100,83 @@ describe('influencerLabel', () => {
 
     it('returns empty string for null tier', () => {
         expect(influencerLabel(null)).toBe('');
+    });
+});
+
+// ── parseXHandle / fetchXProfile ─────────────────────────────────────────────
+
+describe('parseXHandle', () => {
+    it.each([
+        ['https://x.com/pumpdev', 'pumpdev'],
+        ['https://twitter.com/pump_dev/status/123', 'pump_dev'],
+        ['https://www.x.com/PumpDev?s=20', 'PumpDev'],
+        ['@pumpdev', 'pumpdev'],
+        ['pumpdev', 'pumpdev'],
+    ])('reads %s', (input, handle) => {
+        expect(parseXHandle(input)).toBe(handle);
+    });
+
+    it.each([
+        'https://evil.example/x.com/pumpdev',
+        'https://x.com/i/communities/123',
+        'https://x.com/home',
+        'https://x.com/',
+        'this_handle_is_far_too_long',
+        'bad handle',
+        '',
+        null,
+    ])('rejects %j', (input) => {
+        expect(parseXHandle(input)).toBeNull();
+    });
+
+    it('recognises community links separately', () => {
+        expect(isXCommunityUrl('https://x.com/i/communities/123')).toBe(true);
+        expect(isXCommunityUrl('https://x.com/pumpdev')).toBe(false);
+    });
+});
+
+describe('fetchXProfile', () => {
+    const originalFetch = globalThis.fetch;
+
+    beforeEach(() => {
+        vi.resetModules();
+        vi.stubEnv('X_AUTH_TOKEN', 'test-cookie');
+    });
+
+    afterEach(() => {
+        globalThis.fetch = originalFetch;
+        vi.unstubAllEnvs();
+    });
+
+    it('parses the GraphQL profile and makes no request for a non-handle', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                data: { user: { result: { is_blue_verified: true, legacy: {
+                    screen_name: 'PumpDev', name: 'Pump Dev', followers_count: 12_345, friends_count: '10', statuses_count: 'junk',
+                } } } },
+            }),
+        });
+        globalThis.fetch = fetchMock;
+        const { fetchXProfile } = await import('../x-client.js');
+
+        await expect(fetchXProfile('https://evil.example/x.com/a')).resolves.toBeNull();
+        expect(fetchMock).not.toHaveBeenCalled();
+
+        const profile = await fetchXProfile('https://x.com/pumpdev/status/1');
+        expect(profile).toMatchObject({
+            username: 'PumpDev', name: 'Pump Dev', followers: 12_345, following: 10, tweetCount: 0,
+            verified: true, url: 'https://x.com/PumpDev',
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('treats an unavailable user as missing', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({ data: { user: { result: { __typename: 'UserUnavailable' } } } }),
+        });
+        const { fetchXProfile } = await import('../x-client.js');
+        await expect(fetchXProfile('gone_user')).resolves.toBeNull();
     });
 });

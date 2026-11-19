@@ -483,12 +483,8 @@ async function main(): Promise<void> {
                         settle(fetchBundleInfo(event.mintAddress)),
                     ]);
 
-                    // Fetch X profile if token has a Twitter link
-                    let xProfile = null;
-                    if (token?.twitter) {
-                        const handle = token.twitter.replace(/.*twitter\.com\/|.*x\.com\//, '').replace(/\/+$/, '');
-                        if (handle) xProfile = await fetchXProfile(handle);
-                    }
+                    // X profile for the token's own X link (null when it is not a profile link)
+                    const xProfile = token?.twitter ? await settle(fetchXProfile(token.twitter)) : null;
 
                     const { imageUrl, caption } = formatGraduationFeed(
                         event, token, creator, solUsdPrice,

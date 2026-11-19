@@ -10,7 +10,7 @@ import type { CreatorProfile, TokenInfo, TokenTradeInfo, HolderDetails, DevWalle
 import type { FeeClaimEvent, GraduationEvent } from './types.js';
 import { QUOTE_MINT_INFO } from './types.js';
 import type { XProfile } from './x-client.js';
-import { getInfluencerTier, formatFollowerCount, influencerLabel } from './x-client.js';
+import { getInfluencerTier, formatFollowerCount, influencerLabel, isXCommunityUrl, parseXHandle } from './x-client.js';
 import { scoreCredibility, TIER_META, type CredibilityResult } from './credibility.js';
 import { esc, link, safeHref } from './telegram-html.js';
 import type { DevReputation } from './dev-reputation.js';
@@ -261,7 +261,7 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
             L.push(`🌐 ${link(blogHref, esc(blogDisplay))}`);
         }
         if (githubUser.twitterUsername) {
-            const handle = cleanXHandle(githubUser.twitterUsername);
+            const handle = parseXHandle(githubUser.twitterUsername);
             if (handle) {
                 L.push(`𝕏 <a href="https://x.com/${esc(handle)}">${esc(handle)}</a>`);
                 if (xProfile && xProfile.followers > 0) {
@@ -468,7 +468,7 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
 
     // ━━ SOCIALS (token's) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     if (tokenInfo?.twitter) {
-        const handle = cleanXHandle(tokenInfo.twitter);
+        const handle = parseXHandle(tokenInfo.twitter);
         if (handle) {
             L.push(`𝕏 <a href="https://x.com/${esc(handle)}">${esc(handle)}</a>`);
         } else {
@@ -757,28 +757,15 @@ export function formatGraduationFeed(
     }
 
     // ── 𝕏 @handle [12K] ✅ ──────────────────────────────────────────────────
-    if (enrichment?.xProfile) {
-        const xp = enrichment.xProfile;
-        const rawHandle = token?.twitter
-            ? token.twitter.replace(/.*twitter\.com\/|.*x\.com\//, '').replace(/\/+$/, '')
-            : null;
-        const isCommunity = rawHandle?.startsWith('i/communities');
-        const isRealHandle = rawHandle != null && !rawHandle.includes('/');
-        if (isCommunity && token?.twitter) {
-            L.push(`𝕏 ${link(token.twitter, 'Community')}`);
-        } else {
-            const url    = isRealHandle && token?.twitter ? token.twitter : (xp.url ?? `https://x.com/${xp.username}`);
-            const handle = isRealHandle ? rawHandle! : xp.username;
-            const follStr = xp.followers > 0 ? ` [${formatFollowerCount(xp.followers)}]` : '';
-            const verStr  = xp.verified ? ' ✅' : '';
-            L.push(`𝕏 ${link(url, `@${esc(handle)}`)}${follStr}${verStr}`);
-        }
-    } else if (token?.twitter) {
-        const rawHandle = token.twitter.replace(/.*twitter\.com\/|.*x\.com\//, '').replace(/\/+$/, '');
-        if (rawHandle.startsWith('i/communities')) {
-            L.push(`𝕏 ${link(token.twitter, 'Community')}`);
-        } else if (!rawHandle.includes('/')) {
-            L.push(`𝕏 ${link(token.twitter, `@${esc(rawHandle)}`)}`);
+    {
+        const handle = parseXHandle(token?.twitter) ?? enrichment?.xProfile?.username ?? null;
+        const xp = enrichment?.xProfile;
+        if (isXCommunityUrl(token?.twitter)) {
+            L.push(`𝕏 ${link(token?.twitter, 'Community')}`);
+        } else if (handle) {
+            const follStr = xp && xp.followers > 0 ? ` [${formatFollowerCount(xp.followers)}]` : '';
+            const verStr  = xp?.verified ? ' ✅' : '';
+            L.push(`𝕏 ${link(`https://x.com/${handle}`, `@${esc(handle)}`)}${follStr}${verStr}`);
         }
     }
 
@@ -910,25 +897,4 @@ function formatPriceUsd(price: number): string {
         return sig;
     }
     return price.toFixed(8);
-}
-
-/**
- * Extract a clean X/Twitter handle from a URL or raw username string.
- * Handles full URLs, tweet status links, and bare usernames.
- * Returns just the handle (without @) or null if unparseable.
- */
-function cleanXHandle(input: string): string | null {
-    if (!input) return null;
-    // Strip URL prefix to get the path
-    const path = input.replace(/^https?:\/\/(?:www\.)?(?:twitter|x)\.com\//, '').replace(/^@/, '');
-    // Take only the first path segment (the username), ignore /status/... etc.
-    const handle = path.split(/[/?#]/)[0]?.trim();
-    if (!handle || ['home', 'search', 'explore', 'settings', 'i'].includes(handle.toLowerCase())) {
-        return null;
-    }
-    // Validate it looks like a username (alphanumeric + underscore)
-    if (/^[a-zA-Z0-9_]{1,15}$/.test(handle)) {
-        return handle;
-    }
-    return null;
 }

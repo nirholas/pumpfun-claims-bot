@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { parseGitHubRepo, fetchGitHubRepo, fetchGitHubUser, fetchRepoFromUrls } from '../github-client.js';
+import { parseGitHubRepo, fetchGitHubRepo, fetchGitHubUser, fetchGitHubUserById, fetchRepoFromUrls } from '../github-client.js';
 
 // ── parseGitHubRepo ──────────────────────────────────────────────────────────
 
@@ -174,6 +174,55 @@ describe('fetchGitHubUser', () => {
         expect(result!.followers).toBe(150);
         expect(result!.publicRepos).toBe(42);
         expect(result!.twitterUsername).toBe('testdev_x');
+    });
+});
+
+// ── fetchGitHubUserById ──────────────────────────────────────────────────────
+
+describe('fetchGitHubUserById', () => {
+    const originalFetch = globalThis.fetch;
+
+    afterEach(() => {
+        globalThis.fetch = originalFetch;
+    });
+
+    it('resolves a numeric id with a single GET /user/{id}', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({ login: 'mojombo', id: 1, public_repos: 60, html_url: 'https://github.com/mojombo' }),
+        });
+        globalThis.fetch = fetchMock;
+
+        const user = await fetchGitHubUserById('9001');
+        expect(user?.login).toBe('mojombo');
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(fetchMock.mock.calls[0]![0]).toBe('https://api.github.com/user/9001');
+    });
+
+    it.each(['', '0', '12a', '../users', '1'.repeat(13)])('refuses malformed id %j without a request', async (id) => {
+        const fetchMock = vi.fn();
+        globalThis.fetch = fetchMock;
+        await expect(fetchGitHubUserById(id)).resolves.toBeNull();
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('returns null on 404', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 404 });
+        await expect(fetchGitHubUserById('9002')).resolves.toBeNull();
+    });
+});
+
+describe('fetchGitHubUser login validation', () => {
+    it('refuses a login that is not a GitHub username without a request', async () => {
+        const fetchMock = vi.fn();
+        const originalFetch = globalThis.fetch;
+        globalThis.fetch = fetchMock;
+        try {
+            await expect(fetchGitHubUser('a/../../orgs')).resolves.toBeNull();
+            expect(fetchMock).not.toHaveBeenCalled();
+        } finally {
+            globalThis.fetch = originalFetch;
+        }
     });
 });
 

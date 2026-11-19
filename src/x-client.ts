@@ -95,6 +95,52 @@ function setCache(username: string, data: XProfile | null, ttl?: number): void {
 }
 
 // ============================================================================
+// Handles and response parsing
+// ============================================================================
+
+const X_HANDLE_RE = /^[A-Za-z0-9_]{1,15}$/;
+const RESERVED_PATHS = new Set(['home', 'search', 'explore', 'settings', 'i', 'intent', 'share']);
+
+/**
+ * The X/Twitter handle in a profile URL (x.com or twitter.com, with or without
+ * a /status/... suffix), an "@handle", or a bare handle. Returns null for
+ * anything else, including links to other hosts and community pages.
+ */
+export function parseXHandle(input: string | null | undefined): string | null {
+    const value = input?.trim();
+    if (!value) return null;
+    let path = value;
+    if (/^https?:\/\//i.test(value)) {
+        let url: URL;
+        try {
+            url = new URL(value);
+        } catch {
+            return null;
+        }
+        if (!/^(?:www\.|mobile\.)?(?:twitter|x)\.com$/i.test(url.hostname)) return null;
+        path = url.pathname.slice(1);
+    }
+    const handle = path.replace(/^@/, '').split(/[/?#]/)[0] ?? '';
+    if (!X_HANDLE_RE.test(handle) || RESERVED_PATHS.has(handle.toLowerCase())) return null;
+    return handle;
+}
+
+/** True for an x.com / twitter.com community link. */
+export function isXCommunityUrl(input: string | null | undefined): boolean {
+    return /^https?:\/\/(?:www\.)?(?:twitter|x)\.com\/i\/communities\//i.test(input?.trim() ?? '');
+}
+
+/** A property of a JSON object, or undefined when the value is not an object. */
+function field(value: unknown, key: string): unknown {
+    return value !== null && typeof value === 'object' ? (value as Record<string, unknown>)[key] : undefined;
+}
+
+function count(value: unknown): number {
+    const n = Number.parseInt(String(value ?? '0'), 10);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+// ============================================================================
 // GraphQL URL builder (same as xactions buildGraphQLUrl)
 // ============================================================================
 
@@ -118,8 +164,10 @@ function buildGraphQLUrl(username: string): string {
  * Same approach as nirholas/xactions Scraper.getProfile().
  * Requires X_AUTH_TOKEN env var (auth_token cookie from x.com).
  */
-export async function fetchXProfile(username: string): Promise<XProfile | null> {
+export async function fetchXProfile(usernameOrUrl: string): Promise<XProfile | null> {
     if (!X_AUTH_TOKEN) return null;
+    const username = parseXHandle(usernameOrUrl);
+    if (!username) return null;
 
     const cached = getCached(username);
     if (cached !== undefined) return cached;
@@ -157,31 +205,27 @@ export async function fetchXProfile(username: string): Promise<XProfile | null> 
             return null;
         }
 
-        /* eslint-disable @typescript-eslint/no-explicit-any */
-        const body = (await resp.json()) as any;
-        const userResult = body?.data?.user?.result;
-        if (!userResult || userResult.__typename === 'UserUnavailable') {
+        const body: unknown = await resp.json();
+        const userResult = field(field(field(body, 'data'), 'user'), 'result');
+        const legacy = field(userResult, 'legacy');
+        if (!legacy || field(userResult, '__typename') === 'UserUnavailable') {
             setCache(username, null);
             return null;
         }
 
-        const legacy = userResult.legacy as Record<string, any> | undefined;
-        /* eslint-enable @typescript-eslint/no-explicit-any */
-        if (!legacy) {
-            setCache(username, null);
-            return null;
-        }
-
+        const screenName = parseXHandle(String(field(legacy, 'screen_name') ?? '')) ?? username;
+        const description = field(legacy, 'description');
+        const createdAt = field(legacy, 'created_at');
         const profile: XProfile = {
-            username: String(legacy.screen_name ?? username),
-            name: String(legacy.name ?? ''),
-            followers: parseInt(String(legacy.followers_count ?? '0'), 10) || 0,
-            following: parseInt(String(legacy.friends_count ?? '0'), 10) || 0,
-            verified: Boolean(legacy.verified || userResult.is_blue_verified),
-            description: legacy.description ? String(legacy.description) : null,
-            url: `https://x.com/${encodeURIComponent(String(legacy.screen_name ?? username))}`,
-            createdAt: legacy.created_at ? String(legacy.created_at) : null,
-            tweetCount: parseInt(String(legacy.statuses_count ?? '0'), 10) || 0,
+            username: screenName,
+            name: String(field(legacy, 'name') ?? ''),
+            followers: count(field(legacy, 'followers_count')),
+            following: count(field(legacy, 'friends_count')),
+            verified: Boolean(field(legacy, 'verified') || field(userResult, 'is_blue_verified')),
+            description: description ? String(description) : null,
+            url: `https://x.com/${screenName}`,
+            createdAt: createdAt ? String(createdAt) : null,
+            tweetCount: count(field(legacy, 'statuses_count')),
         };
 
         setCache(username, profile);

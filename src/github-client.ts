@@ -159,7 +159,7 @@ export async function fetchGitHubRepo(owner: string, repo: string): Promise<GitH
             createdAt: String(raw.created_at ?? ''),
             defaultBranch: String(raw.default_branch ?? 'main'),
             isFork: Boolean(raw.fork),
-            topics: Array.isArray(raw.topics) ? (raw.topics as string[]).slice(0, 5) : [],
+            topics: Array.isArray(raw.topics) ? raw.topics.filter((t): t is string => typeof t === 'string').slice(0, 5) : [],
             htmlUrl: String(raw.html_url ?? `https://github.com/${owner}/${repo}`),
             ownerAvatar: String((raw.owner as Record<string, unknown>)?.avatar_url ?? ''),
             commitCount: null,
@@ -189,6 +189,7 @@ export async function fetchRepoFromUrls(githubUrls: string[]): Promise<GitHubRep
 
 /** Fetch GitHub user profile. Returns null if user not found or API fails. */
 export async function fetchGitHubUser(username: string): Promise<GitHubUserInfo | null> {
+    if (!GITHUB_LOGIN_RE.test(username)) return null;
     const key = username.toLowerCase();
     const cached = userCache.get(key);
     if (cached !== undefined) return cached;
@@ -244,47 +245,42 @@ function parseUserResponse(raw: Record<string, unknown>, fallbackLogin = ''): Gi
     };
 }
 
-/**
- * Fallback: resolve a numeric GitHub user ID to a username via the public
- * list-users endpoint (GET /users?since=<id-1>&per_page=1).
- * No auth required, but only returns login/id/avatar — then we fetch full profile.
- */
-async function resolveUserIdViaList(userId: string): Promise<GitHubUserInfo | null> {
-    const numId = Number(userId);
-    if (!Number.isInteger(numId) || numId <= 0) return null;
+/** GitHub numeric account ids, as carried by social fee claims. */
+const GITHUB_USER_ID_RE = /^[1-9]\d{0,11}$/;
+/** GitHub logins: alphanumerics and single inner hyphens, at most 39 characters. */
+const GITHUB_LOGIN_RE = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
 
-    try {
-        // Use a window of 100 to handle gaps from deleted accounts
-        const since = Math.max(0, numId - 1);
-        const resp = await fetch(`${GITHUB_API}/users?since=${since}&per_page=100`, {
-            headers: authHeaders(),
-            signal: AbortSignal.timeout(8_000),
-        });
-        if (!resp.ok) return null;
-        const list = (await resp.json()) as Array<Record<string, unknown>>;
-        const match = list.find((u) => Number(u.id) === numId);
-        if (!match?.login) {
-            log.warn('GitHub: user ID %s not found in list window (since=%d, returned %d) — first claim will be skipped', userId, since, list.length);
-            return null;
-        }
-        // Fetch the full profile by username (public endpoint)
-        return await fetchGitHubUser(String(match.login));
-    } catch {
+/** Fetch a GitHub user profile by numeric account id (GET /user/{account_id}). */
+export async function fetchGitHubUserById(userId: string): Promise<GitHubUserInfo | null> {
+    if (!GITHUB_USER_ID_RE.test(userId)) {
+        log.warn('GitHub: ignoring malformed user id %s', JSON.stringify(userId.slice(0, 40)));
         return null;
     }
-}
-
-/** Fetch GitHub user profile by numeric user ID. Returns null if not found. */
-export async function fetchGitHubUserById(userId: string): Promise<GitHubUserInfo | null> {
     const cacheKey = `id:${userId}`;
     const cached = userCache.get(cacheKey);
     if (cached !== undefined) return cached;
 
-    // GitHub REST API GET /user/{account_id} expects a node_id (base64 string),
-    // not a numeric integer ID — so we go straight to the list-based lookup.
-    const result = await resolveUserIdViaList(userId);
-    userCache.set(cacheKey, result, result ? REPO_CACHE_TTL : 60_000);
-    return result;
+    try {
+        const resp = await fetch(`${GITHUB_API}/user/${userId}`, {
+            headers: authHeaders(),
+            signal: AbortSignal.timeout(8_000),
+        });
+        if (!resp.ok) {
+            if (resp.status === 404) {
+                userCache.set(cacheKey, null, REPO_CACHE_TTL);
+            } else {
+                log.warn('GitHub API %d for user id %s', resp.status, userId);
+                userCache.set(cacheKey, null, 60_000);
+            }
+            return null;
+        }
+        const info = parseUserResponse((await resp.json()) as Record<string, unknown>);
+        userCache.set(cacheKey, info);
+        return info;
+    } catch (err) {
+        log.warn('GitHub user fetch failed for id %s: %s', userId, err);
+        return null;
+    }
 }
 
 // ============================================================================

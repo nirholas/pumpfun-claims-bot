@@ -329,6 +329,28 @@ describe('formatCreatorClaimFeed', () => {
 // ── formatGraduationFeed ──────────────────────────────────────────────────────
 
 describe('formatGraduationFeed', () => {
+    const token = makeClaimFeedContext().tokenInfo!;
+
+    it.each([
+        ['https://x.com/pumpcoin/status/42', '<a href="https://x.com/pumpcoin">@pumpcoin</a>'],
+        ['https://x.com/i/communities/77', '<a href="https://x.com/i/communities/77">Community</a>'],
+    ])('renders the X link for %s', (twitter, expected) => {
+        const { caption } = formatGraduationFeed(makeGraduationEvent(), { ...token, twitter }, null, 150);
+        expect(caption).toContain(expected);
+    });
+
+    it('shows follower count and badge from the X profile', () => {
+        const { caption } = formatGraduationFeed(makeGraduationEvent(), { ...token, twitter: 'https://x.com/pumpcoin' }, null, 150, {
+            xProfile: makeXProfile({ username: 'pumpcoin', followers: 12_500, verified: true }),
+        });
+        expect(caption).toContain('@pumpcoin</a> [12.5K] ✅');
+    });
+
+    it('omits the X line for a link that is not an X profile', () => {
+        const { caption } = formatGraduationFeed(makeGraduationEvent(), { ...token, twitter: 'https://evil.example/x.com/a' }, null, 150);
+        expect(caption).not.toContain('𝕏');
+    });
+
     it('returns imageUrl and caption', () => {
         const event = makeGraduationEvent();
         const { imageUrl, caption } = formatGraduationFeed(event, null, null, 150);
