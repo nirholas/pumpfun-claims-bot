@@ -37,6 +37,7 @@
 import { PublicKey } from '@solana/web3.js';
 import { BoundedMap } from './bounded.js';
 import type { RpcFallback } from './rpc-fallback.js';
+import { PUMP_FEE_PROGRAM_ID } from './types.js';
 import { log } from './logger.js';
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -49,8 +50,6 @@ export const CREATE_FEE_SHARING_CONFIG_EVENT_DISC = '8569aac8b874fb58';
 
 /** UpdateFeeSharesEvent discriminator (from IDL: [21,186,196,184,91,228,225,203]) */
 export const UPDATE_FEE_SHARES_EVENT_DISC = '15bac4b85be4e1cb';
-
-const PUMP_FEE_PROGRAM_ID = 'pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ';
 
 /**
  * Most recently indexed PDAs kept in memory. Live events add a mapping for

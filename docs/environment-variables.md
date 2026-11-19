@@ -49,7 +49,6 @@ All feeds default to `false` except `FEED_CLAIMS`.
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `GITHUB_TOKEN` | Optional | GitHub Personal Access Token. Raises API rate limit from 60 → 5,000 req/hr. [Create one here](https://github.com/settings/tokens/new) — no scopes needed |
-| `GROQ_API_KEY` | Optional | Groq API key for AI one-liner summaries on claim cards. [Free key at console.groq.com](https://console.groq.com/keys). See [add-ai-summaries.md](add-ai-summaries.md) |
 | `X_AUTH_TOKEN` | Optional | X/Twitter `auth_token` cookie for follower counts and influencer tier detection. See [x-twitter-setup.md](x-twitter-setup.md) |
 | `X_CT0_TOKEN` | Optional | X/Twitter `ct0` CSRF cookie. Required alongside `X_AUTH_TOKEN` |
 
@@ -117,7 +116,6 @@ REQUIRE_GITHUB=true
 
 # ── Enrichment APIs ───────────────────────────────────────
 GITHUB_TOKEN=ghp_your_token
-GROQ_API_KEY=gsk_your_key
 # X_AUTH_TOKEN=your_x_auth_token_cookie
 # X_CT0_TOKEN=your_x_ct0_cookie
 

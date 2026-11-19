@@ -58,10 +58,6 @@ export interface TokenInfo {
     githubUrls: string[];
 }
 
-export interface TokenHolderInfo {
-    totalHolders: number;
-}
-
 export interface TokenTradeInfo {
     recentTradeCount: number;
     recentVolumeSol: number;
@@ -359,39 +355,6 @@ export function extractGithubUrls(text: string): string[] {
     if (!matches) return [];
     // Deduplicate
     return [...new Set(matches)];
-}
-
-// ============================================================================
-// Token Holder Count
-// ============================================================================
-
-/** Fetch approximate holder count for a token. */
-export async function fetchTokenHolders(mint: string): Promise<TokenHolderInfo> {
-    const result: TokenHolderInfo = { totalHolders: 0 };
-    try {
-        // PumpFun API doesn't directly expose holder count, but we can use
-        // the getTokenLargestAccounts RPC as a proxy — limit 20 response
-        // tells us there are at least 20 holders. For a better count,
-        // use the getProgramAccounts approach or a third-party indexer.
-        // For now, use the PumpFun trades API to estimate from unique traders.
-        const resp = await fetch(
-            `${PUMPFUN_API}/coins/${encodeURIComponent(mint)}/holders?limit=1&offset=0`,
-            { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8_000) },
-        );
-        if (resp.ok) {
-            // The response may include a total field or be an array
-            const data = await resp.json();
-            if (typeof data === 'object' && data !== null && 'total' in data) {
-                result.totalHolders = Number((data as Record<string, unknown>).total ?? 0);
-            } else if (Array.isArray(data)) {
-                // Fallback: if no total, just note we got some
-                result.totalHolders = data.length;
-            }
-        }
-    } catch (err) {
-        log.debug('Holder count fetch failed for %s: %s', mint.slice(0, 8), err);
-    }
-    return result;
 }
 
 // ============================================================================

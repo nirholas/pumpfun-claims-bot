@@ -187,19 +187,6 @@ export async function fetchRepoFromUrls(githubUrls: string[]): Promise<GitHubRep
     return null;
 }
 
-/**
- * Fetch GitHub user profile for the owner of the first valid GitHub URL.
- */
-export async function fetchGitHubUserFromUrls(githubUrls: string[]): Promise<GitHubUserInfo | null> {
-    for (const url of githubUrls.slice(0, 2)) {
-        const parsed = parseGitHubRepo(url);
-        if (!parsed) continue;
-        const user = await fetchGitHubUser(parsed.owner);
-        if (user) return user;
-    }
-    return null;
-}
-
 /** Fetch GitHub user profile. Returns null if user not found or API fails. */
 export async function fetchGitHubUser(username: string): Promise<GitHubUserInfo | null> {
     const key = username.toLowerCase();

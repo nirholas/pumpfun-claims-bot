@@ -100,19 +100,6 @@ On startup, the bot fetches ~148K `SharingConfig` accounts. This takes 30–60 s
 
 ---
 
-## Groq AI Summaries Not Appearing
-
-- Confirm `GROQ_API_KEY` starts with `gsk_` and is correct
-- Groq summaries only appear on **first-time claims** (not repeat claimers)
-- If the Groq API times out (> 5 seconds), the summary is silently skipped — the card still posts
-
-```
-[WARN] Groq API error: 401 Unauthorized
-```
-- Your key is wrong or expired. Get a new one at [console.groq.com](https://console.groq.com/keys)
-
----
-
 ## X/Twitter Follower Counts Missing
 
 - Confirm both `X_AUTH_TOKEN` and `X_CT0_TOKEN` are set

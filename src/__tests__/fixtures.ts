@@ -6,7 +6,6 @@
 import type { FeeClaimEvent, GraduationEvent } from '../types.js';
 import type { ClaimFeedContext, CreatorClaimContext } from '../formatters.js';
 import type { GitHubRepoInfo, GitHubUserInfo } from '../github-client.js';
-import type { ClaimSummaryInput } from '../groq-client.js';
 import type { XProfile } from '../x-client.js';
 
 // ── Fee Claim Event ──────────────────────────────────────────────────────────
@@ -94,39 +93,6 @@ export function makeXProfile(overrides: Partial<XProfile> = {}): XProfile {
 }
 
 // ── Claim Summary Input ──────────────────────────────────────────────────────
-
-export function makeClaimSummaryInput(overrides: Partial<ClaimSummaryInput> = {}): ClaimSummaryInput {
-    return {
-        tokenName: 'PumpCoin',
-        tokenSymbol: 'PUMP',
-        tokenDescription: 'Community token for pump.fun ecosystem',
-        mcapUsd: 45_000,
-        graduated: false,
-        curveProgress: 0.72,
-        claimAmountSol: 1.5,
-        claimAmountUsd: 225,
-        launchToClaimSeconds: 3600,
-        isSelfClaim: true,
-        creatorLaunches: 12,
-        creatorGraduated: 3,
-        creatorFollowers: 450,
-        holderCount: 89,
-        recentTradeCount: 234,
-        githubRepoName: 'pump-fun-sdk',
-        githubStars: 150,
-        githubLanguage: 'TypeScript',
-        githubLastPush: '2026-03-05T10:00:00Z',
-        githubDescription: 'Solana token SDK',
-        githubIsFork: false,
-        githubUserLogin: 'testdev',
-        githubUserFollowers: 200,
-        githubUserRepos: 45,
-        githubUserCreatedAt: '2020-01-15T00:00:00Z',
-        ...overrides,
-    };
-}
-
-// ── Claim Feed Context ───────────────────────────────────────────────────────
 
 export function makeClaimFeedContext(overrides: Partial<ClaimFeedContext> = {}): ClaimFeedContext {
     return {

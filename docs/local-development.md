@@ -85,7 +85,6 @@ npm run test:watch
 | Claim Tracker | `claim-tracker.test.ts` | First-claim detection, persistence, counters, lifetime totals |
 | Formatters | `formatters.test.ts` | HTML card generation, escaping, null handling, edge cases |
 | GitHub Client | `github-client.test.ts` | URL parsing, API response handling, cache behavior |
-| Groq Client | `groq-client.test.ts` | AI summary generation, API key handling, HTML safety |
 | X Client | `x-client.test.ts` | Influencer tier classification, follower formatting |
 | E2E Pipeline | `e2e.test.ts` | End-to-end claim tracking, formatting, GitHub feed |
 
@@ -107,7 +106,6 @@ src/
 ├── pump-client.ts        # PumpFun HTTP API client
 ├── github-client.ts      # GitHub API client (user profiles, rate-limited cache)
 ├── x-client.ts           # X/Twitter profile fetcher + influencer tier logic
-├── groq-client.ts        # Groq AI one-liner summaries
 ├── rpc-fallback.ts       # Multi-RPC failover with round-robin rotation
 ├── health.ts             # HTTP health check server
 ├── types.ts              # Program IDs, discriminators, event types

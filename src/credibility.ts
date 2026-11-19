@@ -9,8 +9,7 @@
  *    dependence beyond account-age math. Reproducible and testable.
  *  - Transparent: every point is attributed to a named factor, so a reader
  *    can see *why* a token scored the way it did rather than trusting a
- *    black box. This is the opposite of the Groq one-liner, which is colour,
- *    not a score.
+ *    black box.
  *  - Conservative: the baseline is a neutral 50. Legitimacy has to be earned
  *    (verified claim, aged account, real starred repo) and risk is penalised
  *    hard (fresh account, copycat, bundle, rug history).

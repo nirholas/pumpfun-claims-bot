@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **`GROQ_API_KEY` and AI claim summaries.** The Groq client was never called, so no card ever carried an AI summary. The client, its guide and its configuration are removed.
 - **`FEED_LAUNCHES`, `FEED_WHALES` and `WHALE_THRESHOLD_SOL`.** These were documented and parsed, but the bot never wired the launch, whale or fee-distribution cards to the channel, so setting them did nothing. The unreachable card builders and their decoders are gone. `FEED_FEE_DISTRIBUTIONS` stays: it gates `distribute_creator_fees` payouts on a channel with `REQUIRE_GITHUB=false`.
 
 ### Fixed

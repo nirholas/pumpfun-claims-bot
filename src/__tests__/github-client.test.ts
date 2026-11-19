@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { parseGitHubRepo, fetchGitHubRepo, fetchGitHubUser, fetchRepoFromUrls, fetchGitHubUserFromUrls } from '../github-client.js';
+import { parseGitHubRepo, fetchGitHubRepo, fetchGitHubUser, fetchRepoFromUrls } from '../github-client.js';
 
 // ── parseGitHubRepo ──────────────────────────────────────────────────────────
 
@@ -207,26 +207,6 @@ describe('fetchRepoFromUrls', () => {
             'https://github.com/a3/b3',
         ];
         const result = await fetchRepoFromUrls(urls);
-        expect(result).toBeNull();
-    });
-});
-
-// ── fetchGitHubUserFromUrls ──────────────────────────────────────────────────
-
-describe('fetchGitHubUserFromUrls', () => {
-    const originalFetch = globalThis.fetch;
-
-    afterEach(() => {
-        globalThis.fetch = originalFetch;
-    });
-
-    it('returns null for empty URL list', async () => {
-        const result = await fetchGitHubUserFromUrls([]);
-        expect(result).toBeNull();
-    });
-
-    it('returns null for non-GitHub URLs', async () => {
-        const result = await fetchGitHubUserFromUrls(['https://example.com']);
         expect(result).toBeNull();
     });
 });

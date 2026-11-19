@@ -20,7 +20,7 @@ import bs58 from 'bs58';
 import { BoundedSet } from './bounded.js';
 import type { ChannelBotConfig } from './config.js';
 import { log } from './logger.js';
-import { RpcFallback } from './rpc-fallback.js';
+import { maskUrl, RpcFallback } from './rpc-fallback.js';
 import {
     SocialFeeIndex,
     CREATE_FEE_SHARING_CONFIG_EVENT_DISC,
@@ -337,7 +337,7 @@ export class ClaimMonitor {
             processedSignatures: this.processedSignatures.size,
             mode: this.wsSubscriptionIds.length > 0 ? 'websocket' : 'polling',
             rpcEndpoints: this.rpc.size,
-            activeRpc: maskRpcUrl(this.rpc.currentUrl),
+            activeRpc: maskUrl(this.rpc.currentUrl),
             uptimeMs: this.startedAt ? Date.now() - this.startedAt : 0,
         };
     }
@@ -763,13 +763,3 @@ export class ClaimMonitor {
     }
 
 }
-
-function maskRpcUrl(url: string): string {
-    try {
-        const u = new URL(url);
-        return u.hostname;
-    } catch {
-        return url.slice(0, 30);
-    }
-}
-

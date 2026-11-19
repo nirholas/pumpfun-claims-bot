@@ -290,6 +290,5 @@ Once the basic setup works, you can add these extras by adding more variables in
 
 | Feature | Add this variable |
 |---------|-------------------|
-| Post AI-written summaries on each card | `GROQ_API_KEY=gsk_...` (free from [console.groq.com](https://console.groq.com)) |
 | Earn affiliate commissions on Axiom links | `AXIOM_REF=your-ref-code` |
 | Also post when tokens graduate | `FEED_GRADUATIONS=true` |

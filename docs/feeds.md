@@ -24,7 +24,6 @@ Each card includes:
 | Token socials | Twitter, Telegram, website from token metadata |
 | Trust signals | Warnings for new GitHub accounts (< 30 days), zero repos, fake claims |
 | Trading links | Axiom, GMGN, Padre — with affiliate codes if configured |
-| AI summary | One-line AI take on the claim (if `GROQ_API_KEY` is set) |
 
 **Filter:** Set `REQUIRE_GITHUB=true` (default) to only post claims from GitHub social fee PDAs, skipping other claim types.
 

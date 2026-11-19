@@ -105,7 +105,6 @@ Key source files:
 ## Next Steps
 
 - **Deploy the bot** → [railway-github-claims.md](railway-github-claims.md)
-- **Add AI summaries** → [add-ai-summaries.md](add-ai-summaries.md)
 - **Add affiliate codes** → [add-affiliate-codes.md](add-affiliate-codes.md)
 - **Set up X/Twitter influencer detection** → [x-twitter-setup.md](x-twitter-setup.md)
 - **Use the MCP server** → [mcp-server.md](mcp-server.md)

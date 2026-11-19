@@ -12,10 +12,7 @@
 export const PUMP_PROGRAM_ID = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
 export const PUMP_AMM_PROGRAM_ID = 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA';
 export const PUMP_FEE_PROGRAM_ID = 'pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ';
-export const MONITORED_PROGRAM_IDS = [PUMP_PROGRAM_ID, PUMP_AMM_PROGRAM_ID, PUMP_FEE_PROGRAM_ID] as const;
 
-export const PUMPFUN_FEE_ACCOUNT = 'CebN5WGQ4jvEPvsVU4EoHEpgzq1VV7AbCJ5GEFDM97zC';
-export const PUMPFUN_MIGRATION_AUTHORITY = '39azUYFWPz3VHgKCf3VChUwbpURdCHRxjWVowf5jUJjg';
 export const WSOL_MINT = 'So11111111111111111111111111111111111111112';
 export const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 
@@ -23,26 +20,6 @@ export const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 export const QUOTE_MINT_INFO: Record<string, { ticker: string; decimals: number; isStable: boolean }> = {
     [USDC_MINT]: { ticker: 'USDC', decimals: 6, isStable: true },
 };
-
-// ============================================================================
-// Token Creation Instruction Discriminators (sha256("global:<ix>")[0..8])
-// ============================================================================
-
-export const CREATE_V2_DISCRIMINATOR = 'd6904cec5f8b31b4';
-export const CREATE_DISCRIMINATOR = '181ec828051c0777';
-
-// ============================================================================
-// Event Discriminators (sha256("event:<Name>")[0..8])
-// ============================================================================
-
-/** CreateEvent: emitted by both create and create_v2. */
-export const CREATE_EVENT_DISCRIMINATOR = '1b72a94ddeeb6376';
-export const COMPLETE_EVENT_DISCRIMINATOR = '5f72619cd42e9808';
-export const COMPLETE_AMM_MIGRATION_DISCRIMINATOR = 'bde95db95c94ea94';
-export const TRADE_EVENT_DISCRIMINATOR = 'bddb7fd34ee661ee';
-/** PostCompleteBuyEvent: the pool part of a buy that completed the curve (synthetic migration). */
-export const POST_COMPLETE_BUY_EVENT_DISCRIMINATOR = '6fb06d8b316cd5fb';
-export const DISTRIBUTE_CREATOR_FEES_EVENT_DISCRIMINATOR = 'a537817004b3ca28';
 
 // ============================================================================
 // Claim Instruction Discriminators
@@ -101,15 +78,6 @@ export const FEE_SWEEP_INSTRUCTIONS: Array<{ discriminator: string; label: strin
     { discriminator: '20f6bf3408c949ba', label: 'Sweep Creator Fee (PumpSwap)', programId: PUMP_AMM_PROGRAM_ID },
     { discriminator: '0830be07b644b7e5', label: 'Sweep Protocol Fee (PumpSwap)', programId: PUMP_AMM_PROGRAM_ID },
 ];
-
-/** Payout events, keyed by event discriminator. Sweep events are deliberately absent: they are not payouts. */
-export const CLAIM_EVENT_DISCRIMINATORS: Record<string, { label: string; isCreatorClaim: boolean }> = {
-    '7a027f010ebf0caf': { isCreatorClaim: true, label: 'CollectCreatorFeeEvent' },
-    'a537817004b3ca28': { isCreatorClaim: true, label: 'DistributeCreatorFeesEvent' },
-    'e2d6f62107f293e5': { isCreatorClaim: false, label: 'ClaimCashbackEvent' },
-    'e8f5c2eeeada3a59': { isCreatorClaim: true, label: 'CollectCoinCreatorFeeEvent' },
-    '3212c141edd2eaec': { isCreatorClaim: true, label: 'SocialFeePdaClaimed' },
-};
 
 // ============================================================================
 // Events
