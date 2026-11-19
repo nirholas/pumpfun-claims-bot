@@ -398,7 +398,10 @@ See [railway.json](railway.json) for the deployment config:
 pumpfun-claims-bot/
 ├── src/
 │   ├── index.ts              # Entry point: wires monitors, enrichment, & Telegram posting
-│   ├── config.ts             # Environment variable loading & validation
+│   ├── config.ts             # Environment variable loading & validation (fails fast on bad values)
+│   ├── first-claim.ts        # First-claim decision (local state, lifetime, PDA and wallet history)
+│   ├── channel-publisher.ts  # Telegram sends with typed retries, photo/text fallback, length limits
+│   ├── telegram-html.ts      # Escaping, http(s)-only links and message fitting for Telegram HTML
 │   ├── mcp-server.ts         # MCP server: exposes tools via Streamable HTTP or stdio
 │   ├── mcp-stdio.ts          # Standalone MCP entry point (stdio transport)
 │   ├── claim-monitor.ts      # PumpFees program monitor (WebSocket + HTTP polling)
@@ -414,9 +417,14 @@ pumpfun-claims-bot/
 │   ├── x-client.ts           # X/Twitter profile fetcher + influencer tier logic
 │   ├── rpc-fallback.ts       # Multi-RPC failover with round-robin
 │   ├── health.ts             # HTTP health check server
+│   ├── persistence.ts        # Atomic JSON state files under DATA_DIR
+│   ├── bounded.ts            # Size-capped sets, maps and TTL caches
+│   ├── json-fields.ts        # Typed readers for untrusted API JSON
+│   ├── pump-events.ts        # Anchor event decoders (claims, completion, migration)
+│   ├── claim-attribution.ts  # Which instruction in a claim transaction is the payout
 │   ├── types.ts              # Program IDs, discriminators, event types
-│   └── logger.ts             # Leveled console logger
-├── src/__tests__/            # Vitest suites (203 tests) + shared fixtures
+│   └── logger.ts             # Leveled logger (text or JSON lines)
+├── src/__tests__/            # Vitest suites + shared fixtures
 ├── web/web/                  # React dashboard prototype (see Web Dashboard)
 ├── leaderboard-bot/          # Separate Telegram bot: GitHub dev earnings leaderboard
 ├── data/                     # Persisted state (gitignored, Railway volume mount)
@@ -597,10 +605,9 @@ as a UI prototype, not a live view of the channel.
 ### Dashboard Features
 
 - **Server-Sent Events (SSE)**: Real-time streaming via `/api/v1/claims/stream` with auto-reconnect (3s delay)
-- **Event Filters**: All, Launches, Whales, Graduations, Claims, Distributions
+- **Event Filters**: filter the (simulated) feed by event type
 - **Live Stats Bar**: Counters for each event type
 - **Watch Lists**: Add/remove wallet addresses to monitor (`GET/POST/DELETE /api/v1/watches`)
-- **Rich Event Cards**: Token launches, whale trades, graduations, fee claims with full context
 - **Connection Status**: Visual indicator with error messages
 - **Mock Data Fallback**: Simulated feed when SSE is unavailable
 
@@ -724,11 +731,18 @@ Every suite lives in `src/__tests__/` (plus `fixtures.ts`, shared sample data).
 | Credibility | `credibility.test.ts` | Deterministic 0-100 scoring, per-factor attribution, tier bounds |
 | Dev Reputation | `dev-reputation.test.ts` | Persistent per-developer track record and averages |
 | Formatters | `formatters.test.ts` | HTML card generation, escaping, null handling, edge cases |
-| GitHub Client | `github-client.test.ts` | URL parsing, API response handling, cache behavior |
+| GitHub Client | `github-client.test.ts` | URL parsing, id/login validation, API response handling |
 | Pump Client | `pump-client.test.ts` | Token, holder, trade, and creator API response handling |
 | RPC Fallback | `rpc-fallback.test.ts` | Round-robin rotation, cooldowns, retryable error handling |
-| X Client | `x-client.test.ts` | Influencer tier classification, follower formatting |
+| X Client | `x-client.test.ts` | Influencer tiers, handle parsing, profile parsing |
 | E2E Pipeline | `e2e.test.ts` | End-to-end claim tracking, formatting, GitHub feed |
+| First Claim | `first-claim.test.ts` | Every branch of the first-claim decision |
+| Channel Publisher | `channel-publisher.test.ts` | Telegram retry policy, photo/text fallback, length limit |
+| Telegram HTML | `telegram-html.test.ts` | Escaping, safe links, sanitising, message fitting |
+| Config | `config.test.ts` | Defaults and startup validation of every variable |
+| MCP HTTP | `mcp-http.test.ts` | Concurrent sessions, input validation, unknown sessions |
+| Monitors | `claim-monitor.test.ts`, `event-monitor.test.ts` | web3.js 3 responses, graduation polling and dedup |
+| Persistence | `persistence.test.ts`, `bounded.test.ts` | Atomic state files, size-capped collections |
 
 ## Local Development
 

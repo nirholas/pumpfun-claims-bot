@@ -447,10 +447,9 @@ export class ClaimMonitor {
         if (err) return;
         if (!this.processedSignatures.add(signature)) return;
 
-        // Scan all log lines for relevant events.
-        // NOTE: claim_social_fee_pda does NOT emit a CPI event — it returns a
-        // SocialFeePdaClaimed struct. Detect it via Anchor's instruction log line
-        // instead of a "Program data:" discriminator.
+        // The WebSocket only delivers log lines, so a social claim is spotted by
+        // Anchor's instruction log line and the full transaction is fetched
+        // afterwards; planClaims then reads its SocialFeePdaClaimed event.
         let hasClaimIx = false;
 
         for (const line of logs) {
