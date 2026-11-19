@@ -38,11 +38,13 @@ const CONFIG = {
     channelId: '@test',
     solanaRpcUrl: 'https://rpc.example',
     solanaRpcUrls: ['https://rpc.example'],
+    solanaWsUrlExplicit: false,
     pollIntervalSeconds: 3600,
     logLevel: 'info',
     feed: { claims: false, graduations: true, feeDistributions: false },
     requireGithub: true,
     affiliates: { axiom: '', gmgn: '', padre: '' },
+    healthPort: 3000,
     mcp: { enabled: false, port: 3001 },
 } satisfies ChannelBotConfig;
 

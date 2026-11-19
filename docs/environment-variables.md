@@ -2,6 +2,8 @@
 
 All configuration is done via environment variables. Copy `.env.example` to `.env` for local development, or set them in Railway / Docker.
 
+Values are checked at startup and every problem is reported at once: booleans accept `true`/`false` (also `1`/`0`, `yes`/`no`, `on`/`off`), numbers must be whole and in range, and RPC URLs must be `http(s)` (`ws(s)` for `SOLANA_WS_URL`). The bot refuses to start rather than guess, so a typo such as `FEED_CLAIMS=ture` no longer silently turns a feed off.
+
 ---
 
 ## Required

@@ -71,7 +71,7 @@ export class EventMonitor {
         if (this.isRunning) return;
         this.isRunning = true;
 
-        if (this.config.solanaWsUrl && process.env.SOLANA_WS_URL) {
+        if (this.config.solanaWsUrl && this.config.solanaWsUrlExplicit) {
             try {
                 await this.startWebSocket();
                 log.info('Event monitor: WebSocket mode');

@@ -528,6 +528,7 @@ async function main(): Promise<void> {
     const startedAt = Date.now();
 
     startHealthServer({
+        port: config.healthPort,
         startedAt,
         getStats: () => ({
             channel: config.channelId,

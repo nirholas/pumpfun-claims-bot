@@ -8,9 +8,9 @@
 import { createServer, type Server } from 'node:http';
 import { log } from './logger.js';
 
-const DEFAULT_PORT = 3000;
-
 export interface HealthStats {
+    /** Port to listen on */
+    port: number;
     /** Unix ms when the bot started */
     startedAt: number;
     /** Callback to get dynamic stats */
@@ -20,7 +20,7 @@ export interface HealthStats {
 let server: Server | null = null;
 
 export function startHealthServer(opts: HealthStats): void {
-    const port = Number(process.env.PORT || process.env.HEALTH_PORT || DEFAULT_PORT);
+    const { port } = opts;
 
     server = createServer((req, res) => {
         if (req.method === 'GET' && (req.url === '/health' || req.url === '/')) {

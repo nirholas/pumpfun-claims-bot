@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Configuration is validated at startup.** A non-numeric `POLL_INTERVAL_SECONDS` used to become `NaN`, a poll loop with no delay; an unreadable boolean such as `FEED_CLAIMS=ture` was treated as `false`; an unknown `LOG_LEVEL` was ignored. All of these now stop the bot with a message that lists every problem, and invalid RPC URLs are reported without their API keys. `HEALTH_PORT` now overrides `PORT`, as documented.
 - **MCP over HTTP (`MCP_ENABLED=true`).** One MCP server instance was shared by every HTTP session, but an MCP server serves only one transport, so every session after the first failed with a 500; the session was also registered before it had an id, so even the first session's follow-up requests got "Invalid or missing session ID". Each session now gets its own server, with at most 100 concurrent sessions and a 30-minute idle timeout.
 - **MCP tool input.** Mint and wallet arguments must be base58 Solana addresses, GitHub logins and numeric ids are checked, and a negative market cap is refused, before any upstream request is made.
 - **`get_claim_history` total.** `totalClaimCount` was always 0 because counts are stored per coin; it is now the sum across coins. The stdio server loads the bot's DATA_DIR state when present, and the MCP server reports the version from `package.json`.

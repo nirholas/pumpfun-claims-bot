@@ -294,7 +294,7 @@ export class ClaimMonitor {
         // mode WS is not optional. Non-GitHub (creator-inclusive) mode still requires
         // the explicit opt-in because that path fans out to more programs.
         const preferWebSocket =
-            !!this.config.solanaWsUrl && (this.config.requireGithub || !!process.env.SOLANA_WS_URL);
+            !!this.config.solanaWsUrl && (this.config.requireGithub || this.config.solanaWsUrlExplicit);
         if (preferWebSocket) {
             try {
                 await this.startWebSocket();
