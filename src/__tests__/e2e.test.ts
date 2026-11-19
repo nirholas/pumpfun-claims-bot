@@ -6,6 +6,24 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
+// vi.mock is hoisted above the imports, so these apply to the whole file.
+vi.mock('node:fs', () => ({
+  existsSync: vi.fn(() => false),
+  mkdirSync: vi.fn(),
+  readFileSync: vi.fn(() => { throw new Error('ENOENT'); }),
+  writeFileSync: vi.fn(),
+  renameSync: vi.fn(),
+  rmSync: vi.fn(),
+}));
+vi.mock('../logger.js', () => ({
+  log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+vi.mock('../x-client.js', () => ({
+  getInfluencerTier: vi.fn(() => null),
+  formatFollowerCount: vi.fn((n: number) => `${n}`),
+  influencerLabel: vi.fn(() => ''),
+}));
+
 // ── Claim Tracker Tests ────────────────────────────────────────────────────
 
 describe('Claim Tracker', () => {
@@ -13,15 +31,6 @@ describe('Claim Tracker', () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    vi.mock('node:fs', () => ({
-      existsSync: vi.fn(() => false),
-      mkdirSync: vi.fn(),
-      readFileSync: vi.fn(() => { throw new Error('ENOENT'); }),
-      writeFileSync: vi.fn(),
-    }));
-    vi.mock('../logger.js', () => ({
-      log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-    }));
     tracker = await import('../claim-tracker.js');
     tracker.loadPersistedClaims();
   });
@@ -32,7 +41,7 @@ describe('Claim Tracker', () => {
 
   it('detects first claim for a GitHub user', () => {
     const mint = 'MintABC123456789012345678901234567890abc';
-    const isFirst = tracker.isFirstClaimByGithubUser('user123');
+    const isFirst = !tracker.hasGithubUserClaimed('user123');
     const claimNumber = tracker.incrementGithubClaimCount('user123', mint);
     tracker.markGithubUserClaimed('user123', mint);
 
@@ -44,7 +53,7 @@ describe('Claim Tracker', () => {
     const mint = 'MintABC123456789012345678901234567890abc';
     tracker.incrementGithubClaimCount('user456', mint);
     tracker.markGithubUserClaimed('user456', mint);
-    const isFirst = tracker.isFirstClaimByGithubUser('user456');
+    const isFirst = !tracker.hasGithubUserClaimed('user456');
     const claimNumber = tracker.incrementGithubClaimCount('user456', mint);
 
     expect(isFirst).toBe(false);
@@ -53,11 +62,9 @@ describe('Claim Tracker', () => {
 
   it('tracks different GitHub users independently', () => {
     const mint = 'MintXYZ123456789012345678901234567890xyz';
-    const isFirstA = tracker.isFirstClaimByGithubUser('user_a');
-    tracker.incrementGithubClaimCount('user_a', mint);
+    const isFirstA = !tracker.hasGithubUserClaimed('user_a');
     tracker.markGithubUserClaimed('user_a', mint);
-    const isFirstB = tracker.isFirstClaimByGithubUser('user_b');
-    tracker.incrementGithubClaimCount('user_b', mint);
+    const isFirstB = !tracker.hasGithubUserClaimed('user_b');
     tracker.markGithubUserClaimed('user_b', mint);
 
     expect(isFirstA).toBe(true);
@@ -99,11 +106,6 @@ describe('Formatters', () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    vi.mock('../x-client.js', () => ({
-      getInfluencerTier: vi.fn(() => null),
-      formatFollowerCount: vi.fn((n: number) => `${n}`),
-      influencerLabel: vi.fn(() => ''),
-    }));
     formatters = await import('../formatters.js');
   });
 
@@ -195,9 +197,6 @@ describe('RPC Fallback', () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    vi.mock('../logger.js', () => ({
-      log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-    }));
     rpcFallback = await import('../rpc-fallback.js');
   });
 
@@ -251,9 +250,6 @@ describe('Social Fee Index', () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    vi.mock('../logger.js', () => ({
-      log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-    }));
     index = await import('../social-fee-index.js');
   });
 

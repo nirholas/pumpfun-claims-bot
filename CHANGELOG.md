@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **State files survive a crash mid-write.** Claim, reputation and poll-cursor files are written to a temporary file and renamed into place. Before, a truncated `github-first-claims.json` failed to parse and every later file was skipped too, resetting first-claim detection.
 - **Cards over Telegram's length limit.** A text card longer than 4,096 characters failed to send and the claim was lost; cards are now trimmed at a line boundary. Caption length is measured in visible characters, not HTML bytes.
 - **Claims after the October 2026 Pump/PumpSwap upgrade.** The claim tables now include `collect_creator_fee_v2`, `distribute_creator_fees_v2`, `transfer_creator_fees_to_pump_v2`, `claim_cashback_v2` and `claim_social_fee_pda_v2`. A claim transaction that sweeps first (`sweep_creator_fee`) reports only the claim; a sweep-only transaction is not a claim, and every claim is paid by its own event so two claims in one transaction are never double counted. V2 claims paid in a quote mint such as USDC show in that currency and are kept out of SOL totals.
 - **Length-tolerant event decoding.** Completion, migration, distribution and fee events are decoded in the new IDL field order from the known prefix, ignoring trailing bytes, so both old and new layouts decode.

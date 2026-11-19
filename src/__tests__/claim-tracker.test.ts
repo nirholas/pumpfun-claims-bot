@@ -1,145 +1,28 @@
 /**
- * Tests for claim tracker — first-claim detection, persistence, counters.
- *
- * Tests the in-memory tracking logic without requiring disk I/O.
+ * Tests for claim tracker — repeat detection, counters and persistence.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../logger.js', () => ({
+    log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+
 import {
-    recordClaim,
-    getClaimRecord,
-    isFirstClaimOnToken,
-    isFirstClaimByWallet,
-    isFirstClaimByGithubUser,
     hasGithubUserClaimed,
     markGithubUserClaimed,
     incrementGithubClaimCount,
     getGithubClaimCount,
-    getTrackedCount,
-    type ClaimRecord,
+    getGithubTotalClaimCount,
+    getGithubUserClaimedMints,
 } from '../claim-tracker.js';
 
 // Note: Each test uses unique keys to avoid cross-test state pollution
 // since the module uses in-memory singletons.
-
-describe('recordClaim', () => {
-    it('records a first claim with claimCount = 1', () => {
-        const record = recordClaim(
-            'wallet_rc_1',
-            'mint_rc_1',
-            1.5,
-            1700000000,
-        );
-
-        expect(record.claimCount).toBe(1);
-        expect(record.totalClaimedSol).toBe(1.5);
-        expect(record.firstClaimTimestamp).toBe(1700000000);
-        expect(record.lastClaimTimestamp).toBe(1700000000);
-    });
-
-    it('increments claim count on repeat claims', () => {
-        recordClaim('wallet_rc_2', 'mint_rc_2', 1.0, 1700000000);
-        const second = recordClaim('wallet_rc_2', 'mint_rc_2', 2.0, 1700001000);
-
-        expect(second.claimCount).toBe(2);
-        expect(second.totalClaimedSol).toBe(3.0);
-        expect(second.firstClaimTimestamp).toBe(1700000000);
-        expect(second.lastClaimTimestamp).toBe(1700001000);
-    });
-
-    it('records price snapshot when provided', () => {
-        const record = recordClaim(
-            'wallet_rc_3',
-            'mint_rc_3',
-            0.5,
-            1700000000,
-            {
-                priceSol: 0.00001,
-                priceUsd: 0.0015,
-                mcapUsd: 45000,
-                curveProgress: 0.72,
-            },
-        );
-
-        expect(record.claimPriceSol).toBe(0.00001);
-        expect(record.claimPriceUsd).toBe(0.0015);
-        expect(record.claimMcapUsd).toBe(45000);
-        expect(record.claimCurveProgress).toBe(0.72);
-    });
-
-    it('defaults price snapshot fields to 0 when not provided', () => {
-        const record = recordClaim('wallet_rc_4', 'mint_rc_4', 1.0, 1700000000);
-
-        expect(record.claimPriceSol).toBe(0);
-        expect(record.claimPriceUsd).toBe(0);
-        expect(record.claimMcapUsd).toBe(0);
-        expect(record.claimCurveProgress).toBe(0);
-    });
-
-    it('tracks different wallet+mint pairs independently', () => {
-        const r1 = recordClaim('wallet_rc_5a', 'mint_rc_5', 1.0, 1700000000);
-        const r2 = recordClaim('wallet_rc_5b', 'mint_rc_5', 2.0, 1700001000);
-
-        expect(r1.claimCount).toBe(1);
-        expect(r2.claimCount).toBe(1);
-        expect(r1.totalClaimedSol).toBe(1.0);
-        expect(r2.totalClaimedSol).toBe(2.0);
-    });
-});
-
-describe('getClaimRecord', () => {
-    it('returns null for unknown wallet+mint', () => {
-        const result = getClaimRecord('unknown_wallet', 'unknown_mint');
-        expect(result).toBeNull();
-    });
-
-    it('returns recorded claim', () => {
-        recordClaim('wallet_gcr_1', 'mint_gcr_1', 3.0, 1700000000);
-        const result = getClaimRecord('wallet_gcr_1', 'mint_gcr_1');
-
-        expect(result).not.toBeNull();
-        expect(result!.claimCount).toBe(1);
-        expect(result!.totalClaimedSol).toBe(3.0);
-    });
-});
-
-describe('isFirstClaimOnToken', () => {
-    it('returns true for first-ever claim on a token', () => {
-        expect(isFirstClaimOnToken('token_first_1')).toBe(true);
-    });
-
-    it('returns false for subsequent calls on same token', () => {
-        isFirstClaimOnToken('token_first_2');
-        expect(isFirstClaimOnToken('token_first_2')).toBe(false);
-    });
-
-    it('returns true for different tokens', () => {
-        expect(isFirstClaimOnToken('token_first_3a')).toBe(true);
-        expect(isFirstClaimOnToken('token_first_3b')).toBe(true);
-    });
-});
-
-describe('isFirstClaimByWallet', () => {
-    it('returns true for first-ever claim by a wallet', () => {
-        expect(isFirstClaimByWallet('wallet_first_1')).toBe(true);
-    });
-
-    it('returns false for subsequent calls with same wallet', () => {
-        isFirstClaimByWallet('wallet_first_2');
-        expect(isFirstClaimByWallet('wallet_first_2')).toBe(false);
-    });
-});
-
-describe('isFirstClaimByGithubUser', () => {
-    it('returns true for first-ever claim by a GitHub user', () => {
-        expect(isFirstClaimByGithubUser('gh_user_1')).toBe(true);
-    });
-
-    it('returns false for subsequent calls with same user', () => {
-        isFirstClaimByGithubUser('gh_user_2');
-        expect(isFirstClaimByGithubUser('gh_user_2')).toBe(false);
-    });
-});
 
 describe('hasGithubUserClaimed / markGithubUserClaimed', () => {
     it('returns false for unclaimed user+mint', () => {
@@ -200,14 +83,65 @@ describe('incrementGithubClaimCount / getGithubClaimCount', () => {
     });
 });
 
-describe('getTrackedCount', () => {
-    it('returns a number', () => {
-        expect(typeof getTrackedCount()).toBe('number');
+describe('getGithubTotalClaimCount', () => {
+    it('sums the per-coin counts of one user only', () => {
+        incrementGithubClaimCount('77', 'mintA');
+        incrementGithubClaimCount('77', 'mintA');
+        incrementGithubClaimCount('77', 'mintB');
+        incrementGithubClaimCount('770', 'mintA');
+        expect(getGithubTotalClaimCount('77')).toBe(3);
+        expect(getGithubClaimCount('77')).toBe(0);
+    });
+});
+
+describe('getGithubUserClaimedMints', () => {
+    it('lists claimed coins and skips PDA keys', () => {
+        markGithubUserClaimed('gh_mints_1', 'mintX');
+        markGithubUserClaimed('gh_mints_1', 'pda:SomePda');
+        markGithubUserClaimed('gh_mints_1', 'mintY');
+        expect(getGithubUserClaimedMints('gh_mints_1')).toEqual(['mintX', 'mintY']);
+    });
+});
+
+describe('persistence', () => {
+    let dir: string;
+    const previousDataDir = process.env.DATA_DIR;
+
+    beforeEach(() => {
+        dir = mkdtempSync(join(tmpdir(), 'claim-tracker-'));
+        process.env.DATA_DIR = dir;
+        vi.resetModules();
     });
 
-    it('increases when new claims are recorded', () => {
-        const before = getTrackedCount();
-        recordClaim('wallet_track_1', 'mint_track_1', 1.0, 1700000000);
-        expect(getTrackedCount()).toBeGreaterThanOrEqual(before);
+    afterEach(() => {
+        if (previousDataDir === undefined) delete process.env.DATA_DIR;
+        else process.env.DATA_DIR = previousDataDir;
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('round-trips claim state through DATA_DIR', async () => {
+        const first = await import('../claim-tracker.js');
+        first.markGithubUserClaimed('4242', 'mintP');
+        first.incrementGithubClaimCount('4242', 'mintP');
+        first.addGithubUserPda('4242', 'PdaOne');
+        first.flushPersistedClaims();
+
+        vi.resetModules();
+        const second = await import('../claim-tracker.js');
+        expect(second.hasGithubUserClaimed('4242')).toBe(false);
+        second.loadPersistedClaims();
+        expect(second.hasGithubUserClaimed('4242')).toBe(true);
+        expect(second.getGithubClaimCount('4242', 'mintP')).toBe(1);
+        expect(second.getGithubUserPdas('4242')).toEqual(['PdaOne']);
+        expect(JSON.parse(readFileSync(join(dir, 'github-first-claims.json'), 'utf8'))).toEqual(['4242', '4242:mintP']);
+    });
+
+    it('still loads the other files when one is corrupt', async () => {
+        writeFileSync(join(dir, 'github-first-claims.json'), '["5151"]');
+        writeFileSync(join(dir, 'github-claim-counts.json'), '{"5151:mint": 2'); // truncated write
+        const tracker = await import('../claim-tracker.js');
+        tracker.loadPersistedClaims();
+        expect(tracker.hasGithubUserClaimed('5151')).toBe(true);
+        expect(tracker.getGithubClaimCount('5151', 'mint')).toBe(0);
     });
 });

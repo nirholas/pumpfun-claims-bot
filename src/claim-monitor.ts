@@ -5,9 +5,6 @@
  * Two modes: WebSocket (real-time) or HTTP polling (fallback).
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-
 import {
     Connection,
     LAMPORTS_PER_SOL,
@@ -20,6 +17,7 @@ import bs58 from 'bs58';
 import { BoundedSet } from './bounded.js';
 import type { ChannelBotConfig } from './config.js';
 import { log } from './logger.js';
+import { dataFile, objectEntries, readJsonFile, writeJsonFileAtomic } from './persistence.js';
 import { maskUrl, RpcFallback } from './rpc-fallback.js';
 import {
     SocialFeeIndex,
@@ -54,8 +52,7 @@ const WS_RETRY_BACKOFF_MS = 15_000;
 const MAX_PROCESSED_SIGNATURES = 10_000;
 
 // Persistence for poll cursor (survives restarts so already-seen txs aren't re-processed)
-const DATA_DIR = process.env.DATA_DIR || join(process.cwd(), 'data');
-const LAST_SIGNATURES_FILE = join(DATA_DIR, 'last-signatures.json');
+const LAST_SIGNATURES_FILE = 'last-signatures.json';
 const LAST_SIG_SAVE_DEBOUNCE_MS = 3_000;
 
 class RpcQueue {
@@ -536,13 +533,10 @@ export class ClaimMonitor {
     /** Load the persisted poll cursors from disk. */
     private loadLastSignatures(): void {
         try {
-            if (!existsSync(LAST_SIGNATURES_FILE)) return;
-            const raw = readFileSync(LAST_SIGNATURES_FILE, 'utf8');
-            const data: unknown = JSON.parse(raw);
-            if (data && typeof data === 'object') {
-                for (const [k, v] of Object.entries(data)) {
-                    if (typeof v === 'string') this.lastSignatures.set(k, v);
-                }
+            for (const [programId, signature] of objectEntries(readJsonFile(dataFile(LAST_SIGNATURES_FILE)))) {
+                if (typeof signature === 'string') this.lastSignatures.set(programId, signature);
+            }
+            if (this.lastSignatures.size > 0) {
                 log.info('Claim monitor: loaded %d persisted poll cursors', this.lastSignatures.size);
             }
         } catch (err) {
@@ -556,12 +550,11 @@ export class ClaimMonitor {
         this.lastSigSaveTimer = setTimeout(() => {
             this.lastSigSaveTimer = null;
             try {
-                if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
                 const obj: Record<string, string> = {};
                 for (const [k, v] of this.lastSignatures) {
                     if (v) obj[k] = v;
                 }
-                writeFileSync(LAST_SIGNATURES_FILE, JSON.stringify(obj), 'utf8');
+                writeJsonFileAtomic(dataFile(LAST_SIGNATURES_FILE), obj);
             } catch (err) {
                 log.warn('Claim monitor: failed to save poll cursors: %s', err);
             }

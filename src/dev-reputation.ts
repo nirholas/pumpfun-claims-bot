@@ -12,14 +12,11 @@
  * re-seen claim never double-counts.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-
 import { log } from './logger.js';
 import { tierFor, type CredibilityTier } from './credibility.js';
+import { dataFile, objectEntries, readJsonFile, writeJsonFileAtomic } from './persistence.js';
 
-const DATA_DIR = process.env.DATA_DIR || join(process.cwd(), 'data');
-const REP_FILE = join(DATA_DIR, 'dev-reputation.json');
+const REP_FILE = 'dev-reputation.json';
 const SAVE_DEBOUNCE_MS = 3_000;
 
 interface DevRecord {
@@ -47,23 +44,25 @@ export interface DevReputation {
 }
 
 export function loadDevReputation(): void {
+    let raw: unknown;
     try {
-        if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-        if (!existsSync(REP_FILE)) return;
-        const obj = JSON.parse(readFileSync(REP_FILE, 'utf8')) as Record<string, DevRecord>;
-        for (const [k, v] of Object.entries(obj)) {
-            if (v && Array.isArray(v.mints) && Array.isArray(v.scores)) {
-                reps.set(k, {
-                    firstSeen: Number(v.firstSeen) || 0,
-                    mints: v.mints.map(String),
-                    scores: v.scores.map(Number),
-                });
-            }
-        }
-        log.info('Loaded dev-reputation for %d devs', reps.size);
+        raw = readJsonFile(dataFile(REP_FILE));
     } catch (err) {
-        log.warn('dev-reputation load failed: %s', err);
+        log.error('dev-reputation: %s — starting empty', err instanceof Error ? err.message : err);
+        return;
     }
+    for (const [userId, value] of objectEntries(raw)) {
+        const fields = new Map(objectEntries(value));
+        const mints = fields.get('mints');
+        const scores = fields.get('scores');
+        if (!Array.isArray(mints) || !Array.isArray(scores)) continue;
+        reps.set(userId, {
+            firstSeen: Number(fields.get('firstSeen')) || 0,
+            mints: mints.map(String),
+            scores: scores.map(Number),
+        });
+    }
+    if (reps.size > 0) log.info('Loaded dev-reputation for %d devs', reps.size);
 }
 
 function scheduleFlush(): void {
@@ -75,11 +74,12 @@ function scheduleFlush(): void {
 }
 
 export function flushDevReputation(): void {
+    if (saveTimer) {
+        clearTimeout(saveTimer);
+        saveTimer = null;
+    }
     try {
-        if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-        const obj: Record<string, DevRecord> = {};
-        for (const [k, v] of reps.entries()) obj[k] = v;
-        writeFileSync(REP_FILE, JSON.stringify(obj), 'utf8');
+        writeJsonFileAtomic(dataFile(REP_FILE), Object.fromEntries(reps));
     } catch (err) {
         log.warn('dev-reputation flush failed: %s', err);
     }
