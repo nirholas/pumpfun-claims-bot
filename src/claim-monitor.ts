@@ -17,6 +17,7 @@ import {
 } from '@solana/web3.js';
 import bs58 from 'bs58';
 
+import { BoundedSet } from './bounded.js';
 import type { ChannelBotConfig } from './config.js';
 import { log } from './logger.js';
 import { RpcFallback } from './rpc-fallback.js';
@@ -50,6 +51,7 @@ const WS_MAX_SILENT_RECONNECTS = 3;
 // GitHub-only mode never falls back to polling (the PumpFees firehose can't be
 // polled), so a failed WS reconnect is retried on this backoff instead.
 const WS_RETRY_BACKOFF_MS = 15_000;
+const MAX_PROCESSED_SIGNATURES = 10_000;
 
 // Persistence for poll cursor (survives restarts so already-seen txs aren't re-processed)
 const DATA_DIR = process.env.DATA_DIR || join(process.cwd(), 'data');
@@ -130,8 +132,7 @@ export class ClaimMonitor {
     private wsSubscriptionIds: number[] = [];
     private lastSignatures = new Map<string, string | undefined>();
     private programPubkeys: PublicKey[];
-    private processedSignatures = new Set<string>();
-    private readonly MAX_PROCESSED_CACHE = 10_000;
+    private processedSignatures = new BoundedSet<string>(MAX_PROCESSED_SIGNATURES);
     private rpcQueue: RpcQueue;
     private consecutive429s = 0;
     private isRunning = false;
@@ -444,9 +445,7 @@ export class ClaimMonitor {
     private async handleLogEvent(logInfo: Logs): Promise<void> {
         const { signature, logs, err } = logInfo;
         if (err) return;
-        if (this.processedSignatures.has(signature)) return;
-        this.processedSignatures.add(signature);
-        this.trimProcessedCache();
+        if (!this.processedSignatures.add(signature)) return;
 
         // Scan all log lines for relevant events.
         // NOTE: claim_social_fee_pda does NOT emit a CPI event — it returns a
@@ -527,12 +526,10 @@ export class ClaimMonitor {
 
             for (const sigInfo of sigs) {
                 if (sigInfo.err) continue;
-                if (this.processedSignatures.has(sigInfo.signature)) continue;
-                this.processedSignatures.add(sigInfo.signature);
+                if (!this.processedSignatures.add(sigInfo.signature)) continue;
                 this.rpcQueue.enqueue(sigInfo.signature);
             }
         }
-        this.trimProcessedCache();
         if (updated) this.scheduleLastSignaturesSave();
     }
 
@@ -765,13 +762,6 @@ export class ClaimMonitor {
         };
     }
 
-    private trimProcessedCache(): void {
-        if (this.processedSignatures.size > this.MAX_PROCESSED_CACHE) {
-            // Keep the most recent entries (Sets are insertion-ordered in JS)
-            const arr = [...this.processedSignatures];
-            this.processedSignatures = new Set(arr.slice(-5_000));
-        }
-    }
 }
 
 function maskRpcUrl(url: string): string {

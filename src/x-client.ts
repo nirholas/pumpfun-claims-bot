@@ -8,6 +8,7 @@
  * No external dependency needed — just fetch + public bearer token + auth cookie.
  */
 
+import { TtlCache } from './bounded.js';
 import { log } from './logger.js';
 
 const X_AUTH_TOKEN = process.env.X_AUTH_TOKEN ?? '';
@@ -83,32 +84,14 @@ export type InfluencerTier = 'mega' | 'influencer' | 'notable' | null;
 // Cache (10 min TTL)
 // ============================================================================
 
-interface CacheEntry<T> {
-    data: T;
-    expiresAt: number;
-}
-
-const profileCache = new Map<string, CacheEntry<XProfile | null>>();
-const CACHE_TTL = 10 * 60 * 1000;
+const profileCache = new TtlCache<string, XProfile | null>(300, 10 * 60 * 1000);
 
 function getCached(username: string): XProfile | null | undefined {
-    const entry = profileCache.get(username.toLowerCase());
-    if (!entry) return undefined;
-    if (Date.now() > entry.expiresAt) {
-        profileCache.delete(username.toLowerCase());
-        return undefined;
-    }
-    return entry.data;
+    return profileCache.get(username.toLowerCase());
 }
 
-function setCache(username: string, data: XProfile | null, ttl: number = CACHE_TTL): void {
-    profileCache.set(username.toLowerCase(), { data, expiresAt: Date.now() + ttl });
-    if (profileCache.size > 300) {
-        const now = Date.now();
-        for (const [k, v] of profileCache) {
-            if (now > v.expiresAt) profileCache.delete(k);
-        }
-    }
+function setCache(username: string, data: XProfile | null, ttl?: number): void {
+    profileCache.set(username.toLowerCase(), data, ttl);
 }
 
 // ============================================================================

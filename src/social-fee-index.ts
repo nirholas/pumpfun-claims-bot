@@ -35,6 +35,7 @@
  */
 
 import { PublicKey } from '@solana/web3.js';
+import { BoundedMap } from './bounded.js';
 import type { RpcFallback } from './rpc-fallback.js';
 import { log } from './logger.js';
 
@@ -50,6 +51,13 @@ export const CREATE_FEE_SHARING_CONFIG_EVENT_DISC = '8569aac8b874fb58';
 export const UPDATE_FEE_SHARES_EVENT_DISC = '15bac4b85be4e1cb';
 
 const PUMP_FEE_PROGRAM_ID = 'pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ';
+
+/**
+ * Most recently indexed PDAs kept in memory. Live events add a mapping for
+ * every fee-sharing config created on chain, so the index would otherwise grow
+ * for the life of the process; an evicted PDA is re-resolved on demand.
+ */
+const MAX_INDEXED_PDAS = 250_000;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -91,13 +99,13 @@ function parseShareholderAddresses(buf: Buffer, offset: number): string[] {
 
 export class SocialFeeIndex {
     /** socialFeePdaAddress → set of mints (1:many — scammers can add the same PDA to multiple tokens) */
-    private index = new Map<string, Set<string>>();
+    private index = new BoundedMap<string, Set<string>>(MAX_INDEXED_PDAS);
     private bootstrapped = false;
 
     /** Number of PDA→mint mappings in the index. */
     get size(): number {
         let count = 0;
-        for (const set of this.index.values()) count += set.size;
+        for (const [, set] of this.index) count += set.size;
         return count;
     }
 

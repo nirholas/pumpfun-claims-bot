@@ -5,6 +5,7 @@
  * from the PumpFun public HTTP API for rich channel feed messages.
  */
 
+import { TtlCache } from './bounded.js';
 import { log } from './logger.js';
 
 const PUMPFUN_API = 'https://frontend-api-v3.pump.fun';
@@ -88,36 +89,8 @@ export interface CreatorProfile {
 // Cache
 // ============================================================================
 
-interface CacheEntry<T> {
-    data: T;
-    expiresAt: number;
-}
-
-const TOKEN_CACHE_TTL = 30_000;
-const CREATOR_CACHE_TTL = 120_000;
-
-const tokenCache = new Map<string, CacheEntry<TokenInfo>>();
-const creatorCache = new Map<string, CacheEntry<CreatorProfile>>();
-
-function getCached<T>(cache: Map<string, CacheEntry<T>>, key: string): T | null {
-    const entry = cache.get(key);
-    if (!entry) return null;
-    if (Date.now() > entry.expiresAt) {
-        cache.delete(key);
-        return null;
-    }
-    return entry.data;
-}
-
-function setCache<T>(cache: Map<string, CacheEntry<T>>, key: string, data: T, ttl: number): void {
-    cache.set(key, { data, expiresAt: Date.now() + ttl });
-    if (cache.size > 500) {
-        const now = Date.now();
-        for (const [k, v] of cache) {
-            if (now > v.expiresAt) cache.delete(k);
-        }
-    }
-}
+const tokenCache = new TtlCache<string, TokenInfo>(500, 30_000);
+const creatorCache = new TtlCache<string, CreatorProfile>(500, 120_000);
 
 // ============================================================================
 // API Calls
@@ -125,11 +98,11 @@ function setCache<T>(cache: Map<string, CacheEntry<T>>, key: string, data: T, tt
 
 /** Fetch token info: PumpFun API (primary) → DexScreener (fallback). */
 export async function fetchTokenInfo(mint: string): Promise<TokenInfo | null> {
-    const cached = getCached(tokenCache, mint);
+    const cached = tokenCache.get(mint);
     if (cached) return cached;
 
     const info = await fetchTokenInfoPump(mint) ?? await fetchTokenInfoDexScreener(mint);
-    if (info) setCache(tokenCache, mint, info, TOKEN_CACHE_TTL);
+    if (info) tokenCache.set(mint, info);
     return info;
 }
 
@@ -294,7 +267,7 @@ async function fetchTokenInfoDexScreener(mint: string): Promise<TokenInfo | null
  * Uses the PumpFun coins endpoint filtered by creator address.
  */
 export async function fetchCreatorProfile(wallet: string): Promise<CreatorProfile> {
-    const cached = getCached(creatorCache, wallet);
+    const cached = creatorCache.get(wallet);
     if (cached) return cached;
 
     const profile: CreatorProfile = {
@@ -349,7 +322,7 @@ export async function fetchCreatorProfile(wallet: string): Promise<CreatorProfil
         log.debug('Creator coins fetch failed for %s: %s', wallet.slice(0, 8), err);
     }
 
-    setCache(creatorCache, wallet, profile, CREATOR_CACHE_TTL);
+    creatorCache.set(wallet, profile);
     return profile;
 }
 

@@ -5,6 +5,7 @@
  * for GitHub URLs found in token descriptions.
  */
 
+import { TtlCache } from './bounded.js';
 import { log } from './logger.js';
 
 const GITHUB_API = 'https://api.github.com';
@@ -77,34 +78,9 @@ export interface GitHubUserInfo {
 // Cache
 // ============================================================================
 
-interface CacheEntry<T> {
-    data: T;
-    expiresAt: number;
-}
-
 const REPO_CACHE_TTL = 600_000; // 10 minutes
-const repoCache = new Map<string, CacheEntry<GitHubRepoInfo | null>>();
-const userCache = new Map<string, CacheEntry<GitHubUserInfo | null>>();
-
-function getCached<T>(cache: Map<string, CacheEntry<T>>, key: string): T | undefined {
-    const entry = cache.get(key);
-    if (!entry) return undefined;
-    if (Date.now() > entry.expiresAt) {
-        cache.delete(key);
-        return undefined;
-    }
-    return entry.data;
-}
-
-function setCache<T>(cache: Map<string, CacheEntry<T>>, key: string, data: T, ttl: number): void {
-    cache.set(key, { data, expiresAt: Date.now() + ttl });
-    if (cache.size > 200) {
-        const now = Date.now();
-        for (const [k, v] of cache) {
-            if (now > v.expiresAt) cache.delete(k);
-        }
-    }
-}
+const repoCache = new TtlCache<string, GitHubRepoInfo | null>(200, REPO_CACHE_TTL);
+const userCache = new TtlCache<string, GitHubUserInfo | null>(200, REPO_CACHE_TTL);
 
 // ============================================================================
 // URL Parsing
@@ -144,7 +120,7 @@ function authHeaders(): Record<string, string> {
 /** Fetch GitHub repo metadata. Returns null if repo not found or API fails. */
 export async function fetchGitHubRepo(owner: string, repo: string): Promise<GitHubRepoInfo | null> {
     const key = `${owner}/${repo}`.toLowerCase();
-    const cached = getCached(repoCache, key);
+    const cached = repoCache.get(key);
     if (cached !== undefined) return cached;
 
     try {
@@ -155,12 +131,12 @@ export async function fetchGitHubRepo(owner: string, repo: string): Promise<GitH
 
         if (!resp.ok) {
             if (resp.status === 404) {
-                setCache(repoCache, key, null, REPO_CACHE_TTL);
+                repoCache.set(key, null, REPO_CACHE_TTL);
                 return null;
             }
             if (resp.status === 403 || resp.status === 429) {
                 log.warn('GitHub API rate limited (%d) for %s/%s', resp.status, owner, repo);
-                setCache(repoCache, key, null, 30_000); // short cooldown to avoid hammering
+                repoCache.set(key, null, 30_000); // short cooldown to avoid hammering
                 return null;
             }
             log.warn('GitHub API %d for %s/%s', resp.status, owner, repo);
@@ -189,7 +165,7 @@ export async function fetchGitHubRepo(owner: string, repo: string): Promise<GitH
             commitCount: null,
         };
 
-        setCache(repoCache, key, info, REPO_CACHE_TTL);
+        repoCache.set(key, info, REPO_CACHE_TTL);
         return info;
     } catch (err) {
         log.error('GitHub fetch failed for %s/%s: %s', owner, repo, err);
@@ -227,7 +203,7 @@ export async function fetchGitHubUserFromUrls(githubUrls: string[]): Promise<Git
 /** Fetch GitHub user profile. Returns null if user not found or API fails. */
 export async function fetchGitHubUser(username: string): Promise<GitHubUserInfo | null> {
     const key = username.toLowerCase();
-    const cached = getCached(userCache, key);
+    const cached = userCache.get(key);
     if (cached !== undefined) return cached;
 
     try {
@@ -238,12 +214,12 @@ export async function fetchGitHubUser(username: string): Promise<GitHubUserInfo 
 
         if (!resp.ok) {
             if (resp.status === 404) {
-                setCache(userCache, key, null, REPO_CACHE_TTL);
+                userCache.set(key, null, REPO_CACHE_TTL);
                 return null;
             }
             if (resp.status === 403 || resp.status === 429) {
                 log.warn('GitHub API rate limited (%d) for user %s', resp.status, username);
-                setCache(userCache, key, null, 30_000); // short cooldown to avoid hammering
+                userCache.set(key, null, 30_000); // short cooldown to avoid hammering
                 return null;
             }
             log.warn('GitHub API %d for user %s', resp.status, username);
@@ -253,7 +229,7 @@ export async function fetchGitHubUser(username: string): Promise<GitHubUserInfo 
         const raw = (await resp.json()) as Record<string, unknown>;
         const info = parseUserResponse(raw, username);
 
-        setCache(userCache, key, info, REPO_CACHE_TTL);
+        userCache.set(key, info, REPO_CACHE_TTL);
         return info;
     } catch (err) {
         log.error('GitHub user fetch failed for %s: %s', username, err);
@@ -314,13 +290,13 @@ async function resolveUserIdViaList(userId: string): Promise<GitHubUserInfo | nu
 /** Fetch GitHub user profile by numeric user ID. Returns null if not found. */
 export async function fetchGitHubUserById(userId: string): Promise<GitHubUserInfo | null> {
     const cacheKey = `id:${userId}`;
-    const cached = getCached(userCache, cacheKey);
+    const cached = userCache.get(cacheKey);
     if (cached !== undefined) return cached;
 
     // GitHub REST API GET /user/{account_id} expects a node_id (base64 string),
     // not a numeric integer ID — so we go straight to the list-based lookup.
     const result = await resolveUserIdViaList(userId);
-    setCache(userCache, cacheKey, result, result ? REPO_CACHE_TTL : 60_000);
+    userCache.set(cacheKey, result, result ? REPO_CACHE_TTL : 60_000);
     return result;
 }
 
