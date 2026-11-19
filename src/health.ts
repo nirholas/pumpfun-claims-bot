@@ -51,7 +51,13 @@ export function startHealthServer(opts: HealthStats): void {
     });
 }
 
-export function stopHealthServer(): void {
-    server?.close();
+/** Stop the health server; resolves once it has closed. */
+export function stopHealthServer(): Promise<void> {
+    const current = server;
     server = null;
+    if (!current) return Promise.resolve();
+    return new Promise((resolve) => {
+        current.close(() => resolve());
+        current.closeAllConnections();
+    });
 }
