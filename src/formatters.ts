@@ -12,6 +12,7 @@ import { QUOTE_MINT_INFO } from './types.js';
 import type { XProfile } from './x-client.js';
 import { getInfluencerTier, formatFollowerCount, influencerLabel } from './x-client.js';
 import { scoreCredibility, TIER_META, type CredibilityResult } from './credibility.js';
+import { esc, link, safeHref } from './telegram-html.js';
 import type { DevReputation } from './dev-reputation.js';
 
 // ============================================================================
@@ -129,7 +130,7 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
 
     // ━━ CA (CONTRACT ADDRESS) ━━━━━━━━━━━━━━━━━━━━━━━━━━━
     if (mint) {
-        L.push(`<code>${mint}</code>`);
+        L.push(`<code>${esc(mint)}</code>`);
         L.push('');
     }
 
@@ -153,7 +154,7 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
         if (tokenInfo.complete) {
             L.push('🎓 Status: Graduated (AMM)');
             if (tokenInfo.pumpSwapPool) {
-                L.push(`🏊 Pool: <code>${tokenInfo.pumpSwapPool}</code>`);
+                L.push(`🏊 Pool: <code>${esc(tokenInfo.pumpSwapPool)}</code>`);
             }
         } else if (tokenInfo.curveProgress > 0) {
             const pct = Math.round(tokenInfo.curveProgress);
@@ -185,8 +186,8 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
         for (const t of ctx.allLinkedTokens) {
             const mc = t.usdMarketCap > 0 ? `$${formatCompact(t.usdMarketCap)}` : '?';
             const status = t.complete ? '🎓' : '📈';
-            const shortMint = `${t.mint.slice(0, 6)}…`;
-            L.push(`${status} <a href="https://pump.fun/coin/${esc(t.mint)}">${esc(t.symbol)}</a> — ${mc} — ${shortMint}`);
+            const shortMint = `${esc(t.mint.slice(0, 6))}…`;
+            L.push(`${status} ${link(pumpCoinUrl(t.mint), esc(t.symbol))} — ${mc} — ${shortMint}`);
         }
         L.push('');
     }
@@ -211,10 +212,10 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
         const total = previousMints.length + 1; // +1 for current claim
         L.push(`🪙 <b>Coins Claimed: ${total}</b>`);
         if (mint) {
-            L.push(`<a href="https://pump.fun/coin/${mint}">${mint.slice(0, 6)}…</a> ◂ current`);
+            L.push(`${link(pumpCoinUrl(mint), `${esc(mint.slice(0, 6))}…`)} ◂ current`);
         }
         for (const m of previousMints.slice(0, 10)) {
-            L.push(`<a href="https://pump.fun/coin/${m}">${m.slice(0, 6)}…</a>`);
+            L.push(link(pumpCoinUrl(m), `${esc(m.slice(0, 6))}…`));
         }
         if (previousMints.length > 10) {
             L.push(`… and ${previousMints.length - 10} more`);
@@ -226,15 +227,15 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
     L.push(`👛 <b>Claimed By</b>`);
     const recipient = event.recipientWallet ?? event.claimerWallet;
     if (recipient) {
-        L.push(`<code>${shortAddr(recipient)}</code>`);
-        L.push(`🔗 <a href="https://pump.fun/profile/${recipient}">pump.fun/profile/${shortAddr(recipient)}</a>`);
+        L.push(`<code>${esc(shortAddr(recipient))}</code>`);
+        L.push(`🔗 ${link(pumpProfileUrl(recipient), `pump.fun/profile/${esc(shortAddr(recipient))}`)}`);
     }
     L.push('');
 
     // ━━ TRANSACTION ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     if (event.txSignature) {
         L.push(`🔎 <b>Transaction</b>`);
-        L.push(`<a href="https://solscan.io/tx/${event.txSignature}">solscan.io/tx/${event.txSignature.slice(0, 20)}…</a>`);
+        L.push(link(solscanTxUrl(event.txSignature), `solscan.io/tx/${esc(event.txSignature.slice(0, 20))}…`));
         L.push('');
     }
 
@@ -242,8 +243,8 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
     L.push(`👨‍💻 <b>Claiming GitHub Identity</b>`);
     if (githubUser) {
         const nameTag = githubUser.name ? ` (${esc(githubUser.name)})` : '';
-        L.push(`<a href="${esc(githubUser.htmlUrl)}">${esc(githubUser.login)}</a>${nameTag}`);
-        L.push(`📦 Repos: <a href="${esc(githubUser.htmlUrl)}?tab=repositories">${githubUser.publicRepos}</a>`);
+        L.push(`${link(githubUser.htmlUrl, esc(githubUser.login))}${nameTag}`);
+        L.push(`📦 Repos: ${link(githubUser.htmlUrl ? `${githubUser.htmlUrl}?tab=repositories` : null, String(githubUser.publicRepos))}`);
         if (githubUser.followers > 0) L.push(`👁 Followers: ${githubUser.followers}`);
         if (githubUser.following > 0) L.push(`👥 Following: ${githubUser.following}`);
         if (githubUser.createdAt) L.push(`📅 Account age: ${timeAgo(new Date(githubUser.createdAt).getTime() / 1000)}`);
@@ -254,9 +255,10 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
             const bio = githubUser.bio.length > 100 ? githubUser.bio.slice(0, 97) + '...' : githubUser.bio;
             L.push(`<i>${esc(bio)}</i>`);
         }
-        if (githubUser.blog) {
-            const blogDisplay = githubUser.blog.replace(/^https?:\/\//, '').slice(0, 40);
-            L.push(`🌐 <a href="${esc(githubUser.blog)}">${esc(blogDisplay)}</a>`);
+        const blogHref = safeHref(githubUser.blog);
+        if (blogHref) {
+            const blogDisplay = blogHref.replace(/^https?:\/\//, '').replace(/\/+$/, '').slice(0, 40);
+            L.push(`🌐 ${link(blogHref, esc(blogDisplay))}`);
         }
         if (githubUser.twitterUsername) {
             const handle = cleanXHandle(githubUser.twitterUsername);
@@ -276,7 +278,7 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
     // ━━ REPO CLAIMED ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     if (ctx.repoInfo) {
         L.push(`📂 <b>Repository in Token Metadata</b>`);
-        L.push(`<a href="${esc(ctx.repoInfo.htmlUrl)}">${esc(ctx.repoInfo.fullName)}</a>`);
+        L.push(link(ctx.repoInfo.htmlUrl, esc(ctx.repoInfo.fullName)));
         if (ctx.repoInfo.description) {
             const desc = ctx.repoInfo.description.length > 100 ? ctx.repoInfo.description.slice(0, 97) + '...' : ctx.repoInfo.description;
             L.push(`<i>${esc(desc)}</i>`);
@@ -297,7 +299,7 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
         const repoPath = repoUrl.replace(/^https?:\/\/github\.com\//, '').replace(/\/+$/, '');
         const isRepoUrl = repoPath.includes('/');
         L.push(`📂 <b>${isRepoUrl ? 'Repository in Token Metadata' : 'GitHub Link in Token Metadata'}</b>`);
-        L.push(`<a href="${esc(repoUrl)}">${esc(repoPath)}</a>`);
+        L.push(link(repoUrl, esc(repoPath)));
         if (!isRepoUrl) L.push(`<i>Profile linked — no specific repo</i>`);
         L.push('');
     }
@@ -306,7 +308,7 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
     if (ctx.creatorProfile) {
         const cp = ctx.creatorProfile;
         L.push(`🧑‍💻 <b>Token Creator</b>`);
-        const creatorLink = `<a href="https://pump.fun/profile/${cp.wallet}">${shortAddr(cp.wallet)}</a>`;
+        const creatorLink = link(pumpProfileUrl(cp.wallet), esc(shortAddr(cp.wallet)));
         const uname = cp.username ? ` @${esc(cp.username)}` : '';
         L.push(`${creatorLink}${uname}`);
         if (cp.totalLaunches > 0) L.push(`🚀 Launches: ${cp.totalLaunches}`);
@@ -320,7 +322,7 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
             const tickers = coins.map(c => {
                 const g = c.complete ? '⭐' : '';
                 const mcap = c.usdMarketCap > 0 ? ` [${formatCompact(c.usdMarketCap)}]` : '';
-                return `<a href="https://pump.fun/coin/${c.mint}">${esc(c.symbol)}</a>${g}${mcap}`;
+                return `${link(pumpCoinUrl(c.mint), esc(c.symbol))}${g}${mcap}`;
             });
             L.push(`🪙 ${tickers.join(' · ')}`);
         }
@@ -454,14 +456,14 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
             const mc = `$${formatCompact(t.usdMarketCap)}`;
             const age = t.age ? ` ${t.age}` : '';
             const shortMint = t.mint.length > 8 ? `${t.mint.slice(0, 6)}…` : t.mint;
-            L.push(`• <a href="${esc(t.url)}">${esc(t.symbol)}</a> ${mc} — ${shortMint}${age}`);
+            L.push(`• ${link(t.url, esc(t.symbol))} ${mc} — ${esc(shortMint)}${esc(age)}`);
         }
         L.push('');
     }
 
     // ━━ CHART ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     if (mint) {
-        L.push(`📊 <a href="https://pump.fun/coin/${mint}">pump.fun/coin/${mint.slice(0, 12)}…</a>`);
+        L.push(`📊 ${link(pumpCoinUrl(mint), `pump.fun/coin/${esc(mint.slice(0, 12))}…`)}`);
     }
 
     // ━━ SOCIALS (token's) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -470,20 +472,23 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
         if (handle) {
             L.push(`𝕏 <a href="https://x.com/${esc(handle)}">${esc(handle)}</a>`);
         } else {
-            L.push(`𝕏 <a href="${esc(tokenInfo.twitter)}">Twitter</a>`);
+            const twitterLink = link(tokenInfo.twitter, 'Twitter');
+            if (twitterLink !== 'Twitter') L.push(`𝕏 ${twitterLink}`);
         }
     }
     if (tokenInfo?.telegram) {
-        L.push(`💬 <a href="${esc(tokenInfo.telegram)}">Telegram</a>`);
+        const telegramLink = link(tokenInfo.telegram, 'Telegram');
+        if (telegramLink !== 'Telegram') L.push(`💬 ${telegramLink}`);
     }
-    if (tokenInfo?.website) {
-        const host = tokenInfo.website.replace(/^https?:\/\//, '').replace(/\/+$/, '').slice(0, 30);
-        L.push(`🌐 <a href="${esc(tokenInfo.website)}">${esc(host)}</a>`);
+    const websiteHref = safeHref(tokenInfo?.website);
+    if (websiteHref) {
+        const host = websiteHref.replace(/^https?:\/\//, '').replace(/\/+$/, '').slice(0, 30);
+        L.push(`🌐 ${link(websiteHref, esc(host))}`);
     }
     if (tokenInfo?.githubUrls?.length) {
         const repoUrl = tokenInfo.githubUrls[0]!;
         const repoPath = repoUrl.replace(/^https?:\/\/github\.com\//, '').replace(/\/+$/, '');
-        L.push(`🌐 <a href="${esc(repoUrl)}">github.com/${esc(repoPath)}</a>`);
+        L.push(`🌐 ${link(repoUrl, `github.com/${esc(repoPath)}`)}`);
     }
     L.push('');
 
@@ -493,13 +498,13 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
 
     // ━━ TRADE LINKS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     if (mint && (attribution.status === 'verified_repository' || attribution.status === 'verified_creator_wallet')) {
-        const axiomUrl = `https://axiom.trade/t/${mint}?ref=${encodeURIComponent(aff?.axiom ?? 'nich')}`;
-        const gmgnUrl  = `https://gmgn.ai/sol/token/${mint}?ref=${encodeURIComponent(aff?.gmgn ?? 'nichxbt')}`;
+        const axiomUrl = `https://axiom.trade/t/${encodeURIComponent(mint)}?ref=${encodeURIComponent(aff?.axiom ?? 'nich')}`;
+        const gmgnUrl  = `https://gmgn.ai/sol/token/${encodeURIComponent(mint)}?ref=${encodeURIComponent(aff?.gmgn ?? 'nichxbt')}`;
         const padreUrl = `https://trade.padre.gg/rk/${encodeURIComponent(aff?.padre ?? 'nichxbt')}`;
         L.push(`💹 Trade`);
-        L.push(`<a href="${axiomUrl}">Axiom</a> | <a href="${gmgnUrl}">GMGN</a> | <a href="${padreUrl}">Padre</a>`);
+        L.push(`${link(axiomUrl, 'Axiom')} | ${link(gmgnUrl, 'GMGN')} | ${link(padreUrl, 'Padre')}`);
         L.push('');
-        L.push(`<code>${mint}</code>`);
+        L.push(`<code>${esc(mint)}</code>`);
     }
 
     // ━━ TLDR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -548,11 +553,11 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
     }
     L.push('');
     if (mint) {
-        L.push(`CA: <code>${mint}</code>`);
+        L.push(`CA: <code>${esc(mint)}</code>`);
     }
 
     // Token image takes priority; fall back to GitHub avatar
-    const imageUrl = tokenInfo?.imageUri || githubUser?.avatarUrl || null;
+    const imageUrl = safeHref(tokenInfo?.imageUri) ?? safeHref(githubUser?.avatarUrl);
     return { imageUrl, caption: L.join('\n') };
 }
 
@@ -586,7 +591,7 @@ export function formatCreatorClaimFeed(ctx: CreatorClaimContext): { imageUrl: st
     // ━━ CREATOR PROFILE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     L.push('');
     const wallet = event.claimerWallet;
-    const profileLink = `<a href="https://pump.fun/profile/${wallet}">${shortAddr(wallet)}</a>`;
+    const profileLink = link(pumpProfileUrl(wallet), esc(shortAddr(wallet)));
     const uname = creator?.username ? ` @${esc(creator.username)}` : '';
     L.push(`👤 ${profileLink}${uname}`);
 
@@ -603,7 +608,7 @@ export function formatCreatorClaimFeed(ctx: CreatorClaimContext): { imageUrl: st
             const tickers = coins.map((c) => {
                 const g = c.complete ? '⭐' : '';
                 const mcap = c.usdMarketCap > 0 ? ` [${formatCompact(c.usdMarketCap)}]` : '';
-                return `<a href="https://pump.fun/coin/${c.mint}">${esc(c.symbol)}</a>${g}${mcap}`;
+                return `${link(pumpCoinUrl(c.mint), esc(c.symbol))}${g}${mcap}`;
             });
             L.push(`🪙 ${tickers.join(' · ')}`);
         }
@@ -612,11 +617,11 @@ export function formatCreatorClaimFeed(ctx: CreatorClaimContext): { imageUrl: st
     // ━━ TX ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     L.push('');
     if (event.txSignature) {
-        L.push(`🔍 <a href="https://solscan.io/tx/${event.txSignature}">TX</a>`);
+        L.push(`🔍 ${link(solscanTxUrl(event.txSignature), 'TX')}`);
     }
     L.push(`🕐 ${formatTime(event.timestamp)}`);
 
-    const imageUrl = creator?.profileImage || null;
+    const imageUrl = safeHref(creator?.profileImage);
     return { imageUrl, caption: L.join('\n') };
 }
 
@@ -663,7 +668,7 @@ export function formatGraduationFeed(
     }
 
     // ── 🆕💊 Name — $TICKER ⚡️ [4m] ────────────────────────────────────────
-    const nameLink = `<a href="https://pump.fun/coin/${mint}">${esc(coinName)}</a>`;
+    const nameLink = link(pumpCoinUrl(mint), esc(coinName));
     const speedStr = speedEmoji ? ` ${speedEmoji}` : '';
     const ageStr   = timeLabel  ? ` [${timeLabel}]` : '';
     L.push(`🆕💊 <b>${nameLink}</b> — $${esc(coinTicker)}${speedStr}${ageStr}`);
@@ -739,7 +744,7 @@ export function formatGraduationFeed(
             const graduated = creator.recentCoins.filter(c => c.complete && c.usdMarketCap > 1000);
             if (graduated.length > 0) {
                 const best = graduated.reduce((m, c) => c.usdMarketCap > m.usdMarketCap ? c : m, graduated[0]!);
-                const coinLink = `<a href="https://pump.fun/coin/${best.mint}">$${esc(best.symbol)}</a>`;
+                const coinLink = link(pumpCoinUrl(best.mint), `$${esc(best.symbol)}`);
                 devParts.push(`best ${coinLink} $${formatCompact(best.usdMarketCap)}`);
             }
         }
@@ -760,58 +765,60 @@ export function formatGraduationFeed(
         const isCommunity = rawHandle?.startsWith('i/communities');
         const isRealHandle = rawHandle != null && !rawHandle.includes('/');
         if (isCommunity && token?.twitter) {
-            L.push(`𝕏 <a href="${esc(token.twitter)}">Community</a>`);
+            L.push(`𝕏 ${link(token.twitter, 'Community')}`);
         } else {
             const url    = isRealHandle && token?.twitter ? token.twitter : (xp.url ?? `https://x.com/${xp.username}`);
             const handle = isRealHandle ? rawHandle! : xp.username;
             const follStr = xp.followers > 0 ? ` [${formatFollowerCount(xp.followers)}]` : '';
             const verStr  = xp.verified ? ' ✅' : '';
-            L.push(`𝕏 <a href="${esc(url)}">@${esc(handle)}</a>${follStr}${verStr}`);
+            L.push(`𝕏 ${link(url, `@${esc(handle)}`)}${follStr}${verStr}`);
         }
     } else if (token?.twitter) {
         const rawHandle = token.twitter.replace(/.*twitter\.com\/|.*x\.com\//, '').replace(/\/+$/, '');
         if (rawHandle.startsWith('i/communities')) {
-            L.push(`𝕏 <a href="${esc(token.twitter)}">Community</a>`);
+            L.push(`𝕏 ${link(token.twitter, 'Community')}`);
         } else if (!rawHandle.includes('/')) {
-            L.push(`𝕏 <a href="${esc(token.twitter)}">@${esc(rawHandle)}</a>`);
+            L.push(`𝕏 ${link(token.twitter, `@${esc(rawHandle)}`)}`);
         }
     }
 
     // ── Other socials (website / telegram / github) ──────────────────────────
     if (token) {
         const sp: string[] = [];
-        if (token.website)  sp.push(`<a href="${esc(token.website)}">🌍</a>`);
-        if (token.telegram) sp.push(`<a href="${esc(token.telegram)}">✈️</a>`);
-        if (token.githubUrls?.[0]) sp.push(`<a href="${esc(token.githubUrls[0])}">🐙</a>`);
+        for (const [url, icon] of [[token.website, '🌍'], [token.telegram, '✈️'], [token.githubUrls?.[0], '🐙']] as const) {
+            const socialLink = link(url, icon);
+            if (socialLink !== icon) sp.push(socialLink);
+        }
         if (sp.length > 0) L.push(sp.join('  '));
     }
 
     // ── 💹 Chart: DEX⋅DEF  🧰 AXI⋅GMG⋅PDR⋅PHO ──────────────────────────────
+    const m = encodeURIComponent(mint);
     L.push(
-        `💹 Chart: <a href="https://dexscreener.com/solana/${mint}">DEX</a>` +
-        `⋅<a href="https://www.defined.fi/sol/${mint}">DEF</a>`,
+        `💹 Chart: ${link(`https://dexscreener.com/solana/${m}`, 'DEX')}` +
+        `⋅${link(`https://www.defined.fi/sol/${m}`, 'DEF')}`,
     );
     L.push(
-        `🧰 <a href="https://axiom.trade/t/${mint}">AXI</a>` +
-        `⋅<a href="https://gmgn.ai/sol/token/${mint}">GMG</a>` +
-        `⋅<a href="https://t.me/padre_bot?start=${mint}">PDR</a>` +
-        `⋅<a href="https://photon-sol.tinyastro.io/en/lp/${mint}">PHO</a>` +
-        `⋅<a href="https://bullx.io/terminal?chainId=1399811149&address=${mint}">BLX</a>`,
+        `🧰 ${link(`https://axiom.trade/t/${m}`, 'AXI')}` +
+        `⋅${link(`https://gmgn.ai/sol/token/${m}`, 'GMG')}` +
+        `⋅${link(`https://t.me/padre_bot?start=${m}`, 'PDR')}` +
+        `⋅${link(`https://photon-sol.tinyastro.io/en/lp/${m}`, 'PHO')}` +
+        `⋅${link(`https://bullx.io/terminal?chainId=1399811149&address=${m}`, 'BLX')}`,
     );
 
     L.push('');
 
     // ── CA ───────────────────────────────────────────────────────────────────
-    L.push(`<code>${mint}</code>`);
+    L.push(`<code>${esc(mint)}</code>`);
 
     // ── Footer ───────────────────────────────────────────────────────────────
     L.push('');
-    const txLink = `<a href="https://solscan.io/tx/${event.txSignature}">TX</a>`;
-    const pfLink = `<a href="https://pump.fun/coin/${mint}">pump.fun</a>`;
+    const txLink = link(solscanTxUrl(event.txSignature), 'TX');
+    const pfLink = link(pumpCoinUrl(mint), 'pump.fun');
     L.push(`🔗 ${txLink}  ·  ${pfLink}  ·  🕐 ${formatTime(event.timestamp)}`);
 
     return {
-        imageUrl: token?.imageUri || null,
+        imageUrl: safeHref(token?.imageUri),
         caption: L.join('\n'),
     };
 }
@@ -840,53 +847,21 @@ export function formatQuoteUnits(quoteMint: string, baseUnits: number): string {
     return `${(baseUnits / 10 ** info.decimals).toFixed(2)} ${info.ticker}`;
 }
 
+function pumpCoinUrl(mint: string): string {
+    return `https://pump.fun/coin/${encodeURIComponent(mint)}`;
+}
+
+function pumpProfileUrl(wallet: string): string {
+    return `https://pump.fun/profile/${encodeURIComponent(wallet)}`;
+}
+
+function solscanTxUrl(signature: string): string {
+    return `https://solscan.io/tx/${encodeURIComponent(signature)}`;
+}
+
 export function shortAddr(addr: string): string {
     if (!addr || addr.length <= 12) return addr || '???';
     return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
-
-export function esc(text: string): string {
-    return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-}
-
-/**
- * Sanitise a complete Telegram HTML message by escaping stray `<` / `>`
- * characters that are NOT part of a recognised Telegram tag or `&`-entity.
- * Recognised tags: b, strong, i, em, u, ins, s, strike, del, span, tg-spoiler,
- *                  a, code, pre, blockquote, tg-emoji.
- */
-const TG_TAG_RE = /<\/?\s*(?:b|strong|i|em|u|ins|s|strike|del|span|tg-spoiler|a|code|pre|blockquote|tg-emoji)\b[^>]*>/gi;
-export function sanitiseHtml(html: string): string {
-    // Replace every < that is NOT the start of a recognised tag with &lt;
-    // Approach: split on recognised tags, escape within each gap, rejoin.
-    const tags: { match: string; index: number }[] = [];
-    let m: RegExpExecArray | null;
-    const re = new RegExp(TG_TAG_RE.source, 'gi');
-    while ((m = re.exec(html)) !== null) tags.push({ match: m[0], index: m.index });
-
-    if (tags.length === 0) {
-        // No recognised tags at all — escape every < and >
-        return html.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
-
-    let out = '';
-    let cursor = 0;
-    for (const t of tags) {
-        // Text before the tag — escape stray angle brackets
-        const gap = html.slice(cursor, t.index);
-        out += gap.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        // The tag itself — keep as-is
-        out += t.match;
-        cursor = t.index + t.match.length;
-    }
-    // Trailing text after the last tag
-    const tail = html.slice(cursor);
-    out += tail.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    return out;
 }
 
 function formatTime(unixSeconds: number): string {

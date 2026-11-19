@@ -92,7 +92,7 @@ export function makeXProfile(overrides: Partial<XProfile> = {}): XProfile {
     };
 }
 
-// ── Claim Summary Input ──────────────────────────────────────────────────────
+// ── Claim Feed Context ───────────────────────────────────────────────────────
 
 export function makeClaimFeedContext(overrides: Partial<ClaimFeedContext> = {}): ClaimFeedContext {
     return {

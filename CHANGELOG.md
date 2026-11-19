@@ -12,8 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`GROQ_API_KEY` and AI claim summaries.** The Groq client was never called, so no card ever carried an AI summary. The client, its guide and its configuration are removed.
 - **`FEED_LAUNCHES`, `FEED_WHALES` and `WHALE_THRESHOLD_SOL`.** These were documented and parsed, but the bot never wired the launch, whale or fee-distribution cards to the channel, so setting them did nothing. The unreachable card builders and their decoders are gone. `FEED_FEE_DISTRIBUTIONS` stays: it gates `distribute_creator_fees` payouts on a channel with `REQUIRE_GITHUB=false`.
 
+### Security
+
+- **Telegram HTML injection.** Coin names, links, pool and mint fields from the pump.fun and DexScreener APIs, and GitHub blog URLs were interpolated into cards without escaping, so a coin creator could add their own links or markup to a card or make the send fail. Every value is now escaped, links and card images must be http(s), and unsafe links are left out.
+
 ### Fixed
 
+- **Cards over Telegram's length limit.** A text card longer than 4,096 characters failed to send and the claim was lost; cards are now trimmed at a line boundary. Caption length is measured in visible characters, not HTML bytes.
 - **Claims after the October 2026 Pump/PumpSwap upgrade.** The claim tables now include `collect_creator_fee_v2`, `distribute_creator_fees_v2`, `transfer_creator_fees_to_pump_v2`, `claim_cashback_v2` and `claim_social_fee_pda_v2`. A claim transaction that sweeps first (`sweep_creator_fee`) reports only the claim; a sweep-only transaction is not a claim, and every claim is paid by its own event so two claims in one transaction are never double counted. V2 claims paid in a quote mint such as USDC show in that currency and are kept out of SOL totals.
 - **Length-tolerant event decoding.** Completion, migration, distribution and fee events are decoded in the new IDL field order from the known prefix, ignoring trailing bytes, so both old and new layouts decode.
 - **Social claim lifetime totals.** `SocialFeePdaClaimed.lifetime_claimed` is read in IDL order (after `claimable_before`) instead of being guessed; the leaderboard bot also accepts `claim_social_fee_pda_v2` and keeps non-SOL claims out of its SOL leaderboard.

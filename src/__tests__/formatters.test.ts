@@ -11,7 +11,6 @@ import {
     formatCreatorClaimFeed,
     formatGraduationFeed,
     shortAddr,
-    esc,
 } from '../formatters.js';
 import {
     makeClaimFeedContext,
@@ -208,6 +207,61 @@ describe('formatGitHubClaimFeed', () => {
     });
 });
 
+describe('formatGitHubClaimFeed with hostile metadata', () => {
+    const base = makeClaimFeedContext();
+    const hostile = makeClaimFeedContext({
+        tokenInfo: {
+            ...base.tokenInfo!,
+            name: '<a href="https://evil.example">Claim airdrop</a>',
+            symbol: '<b>PUMP',
+            website: 'javascript:alert(1)',
+            telegram: 'tg://resolve?domain=phish',
+            twitter: 'not a url',
+            pumpSwapPool: '</code><a href="https://evil.example">pool</a>',
+            complete: true,
+        },
+        githubUser: makeGitHubUser({ blog: 'javascript:alert(document.cookie)', bio: '<i>bio</i>' }),
+        sameNameTokens: [{ mint: '<b>x</b>Mint', name: 'n', symbol: '<s>', usdMarketCap: 10_000_000, url: 'data:text/html,hi', age: '<1d>' }],
+    });
+    const { caption } = formatGitHubClaimFeed(hostile);
+
+    it('never emits a link to a non-http(s) target', () => {
+        const hrefs = [...caption.matchAll(/href="([^"]*)"/g)].map((m) => m[1]!);
+        expect(hrefs.length).toBeGreaterThan(0);
+        for (const href of hrefs) {
+            expect(href).toMatch(/^https?:\/\//);
+            expect(href).not.toContain('evil.example');
+        }
+        expect(caption).not.toContain('javascript:');
+        expect(caption).not.toContain('tg://');
+        expect(caption).not.toContain('data:text');
+    });
+
+    it('escapes creator-controlled text instead of rendering it as markup', () => {
+        expect(caption).not.toMatch(/<a href="https:\/\/evil/);
+        expect(caption).toContain('&lt;a href=&quot;https://evil.example&quot;&gt;');
+        expect(caption).toContain('&lt;b&gt;PUMP');
+    });
+
+    it('only offers an http(s) image to sendPhoto', () => {
+        const ctx = makeClaimFeedContext({
+            tokenInfo: { ...base.tokenInfo!, imageUri: 'file:///etc/passwd' },
+            githubUser: makeGitHubUser({ avatarUrl: 'https://avatars.githubusercontent.com/u/1' }),
+        });
+        expect(formatGitHubClaimFeed(ctx).imageUrl).toBe('https://avatars.githubusercontent.com/u/1');
+    });
+
+    it('keeps every tag balanced on its line', () => {
+        for (const line of caption.split('\n')) {
+            for (const tag of ['a', 'b', 'i', 'code']) {
+                const open = line.match(new RegExp(`<${tag}[ >]`, 'g'))?.length ?? 0;
+                const close = line.match(new RegExp(`</${tag}>`, 'g'))?.length ?? 0;
+                expect(open, `${tag} in: ${line}`).toBe(close);
+            }
+        }
+    });
+});
+
 // ── formatCreatorClaimFeed ───────────────────────────────────────────────────
 
 describe('formatCreatorClaimFeed', () => {
@@ -355,29 +409,5 @@ describe('shortAddr', () => {
 
     it('handles empty/null input', () => {
         expect(shortAddr('')).toBe('???');
-    });
-});
-
-describe('esc', () => {
-    it('escapes HTML characters', () => {
-        expect(esc('a<b>c')).toBe('a&lt;b&gt;c');
-        expect(esc('a&b')).toBe('a&amp;b');
-        expect(esc('a"b')).toBe('a&quot;b');
-    });
-
-    it('handles strings without special chars', () => {
-        expect(esc('hello world')).toBe('hello world');
-    });
-
-    it('handles empty string', () => {
-        expect(esc('')).toBe('');
-    });
-
-    it('prevents XSS injection', () => {
-        const malicious = '<script>alert("xss")</script>';
-        const escaped = esc(malicious);
-
-        expect(escaped).not.toContain('<script>');
-        expect(escaped).toContain('&lt;script&gt;');
     });
 });

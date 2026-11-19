@@ -19,7 +19,8 @@ import { hasGithubUserClaimed, markGithubUserClaimed, incrementGithubClaimCount,
 import { fetchTokenInfo, fetchTopHolders, fetchTokenTrades, fetchDevWalletInfo, fetchSolUsdPrice, fetchPoolLiquidity, fetchBundleInfo, fetchCreatorProfile, fetchSameNameTokens } from './pump-client.js';
 import { fetchGitHubUserById, fetchRepoFromUrls } from './github-client.js';
 import { fetchXProfile } from './x-client.js';
-import { formatClaimAmount, formatGitHubClaimFeed, formatCreatorClaimFeed, formatGraduationFeed, sanitiseHtml } from './formatters.js';
+import { formatClaimAmount, formatGitHubClaimFeed, formatCreatorClaimFeed, formatGraduationFeed } from './formatters.js';
+import { fitToLimit, sanitiseHtml, TELEGRAM_CAPTION_LIMIT, TELEGRAM_TEXT_LIMIT, visibleLength } from './telegram-html.js';
 import { isCreatorClaimType, shouldPostCreatorClaim } from './claim-routing.js';
 import type { ClaimFeedContext, CreatorClaimContext } from './formatters.js';
 import { scoreCredibility } from './credibility.js';
@@ -93,9 +94,9 @@ async function main(): Promise<void> {
         });
     }
 
-    /** Send a message to the channel. Throws on failure. */
+    /** Send a message to the channel, trimmed to Telegram's length limit. Throws on failure. */
     async function postToChannel(message: string): Promise<void> {
-        const safe = sanitiseHtml(message);
+        const safe = fitToLimit(sanitiseHtml(message), TELEGRAM_TEXT_LIMIT);
         try {
             await withRetry(() => bot.api.sendMessage(config.channelId, safe, {
                 parse_mode: 'HTML',
@@ -110,12 +111,10 @@ async function main(): Promise<void> {
     /** Send a photo with caption to the channel. Falls back to text if photo fails. */
     async function postPhotoToChannel(imageUrl: string, caption: string): Promise<void> {
         const safe = sanitiseHtml(caption);
-        // Telegram photo captions are limited to 1024 chars.
-        // Use UTF-8 byte length (not JS string length) because Telegram counts bytes,
-        // and emojis/Unicode take 3-4 bytes each.
-        const byteLen = Buffer.byteLength(safe, 'utf8');
-        if (byteLen > 1024) {
-            log.warn('Caption too long for photo (%d bytes, %d chars), sending as text', byteLen, safe.length);
+        // Captions are limited to 1024 characters of visible text; a longer card goes out as a text message.
+        const length = visibleLength(safe);
+        if (length > TELEGRAM_CAPTION_LIMIT) {
+            log.debug('Caption too long for photo (%d visible chars), sending as text', length);
             await postToChannel(safe);
             return;
         }
