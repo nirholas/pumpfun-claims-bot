@@ -4,7 +4,7 @@
   "description": "Telegram leaderboard bot ranking GitHub developers by PumpFun social fee earnings",
   "type": "module",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.18.0"
   },
   "scripts": {
     "dev": "node --env-file=.env --import tsx/esm src/index.ts",

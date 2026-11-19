@@ -263,8 +263,9 @@ export class ClaimMonitor {
             const signerKey = accountKeys.find((a) => a.signer)?.pubkey?.toBase58();
             if (!signerKey) return;
 
-            const timestamp = tx.blockTime ?? Math.floor(Date.now() / 1000);
-            const event = this.parseClaimEvent(signature, tx.slot, timestamp, signerKey, logs, tx);
+            // web3.js 3 returns bigint slots and block times; convert at the RPC boundary.
+            const timestamp = tx.blockTime != null ? Number(tx.blockTime) : Math.floor(Date.now() / 1000);
+            const event = this.parseClaimEvent(signature, Number(tx.slot), timestamp, signerKey, logs, tx);
             if (event) {
                 this.claimsFound++;
                 this.onClaim(event);
