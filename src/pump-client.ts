@@ -144,10 +144,9 @@ async function fetchTokenInfoPump(mint: string): Promise<TokenInfo | null> {
         const githubUrls = extractGithubUrls(
             [description, website, twitter, telegram, metadataUri].join(' '),
         );
-        // Also check if the website itself is a GitHub URL
-        if (website && /github\.com/i.test(website) && !githubUrls.some(u => u === website)) {
-            githubUrls.push(website);
-        }
+        // A website on github.com (www. or no scheme) that the text scan did not catch
+        const websiteRepo = githubUrlFromWebsite(website);
+        if (websiteRepo && !githubUrls.includes(websiteRepo)) githubUrls.push(websiteRepo);
 
         // Timestamps from API are ms — normalize to seconds
         const createdTs = Number(raw.created_timestamp ?? 0);
@@ -347,6 +346,26 @@ export function formatTokenAmount(raw: number): string {
 // ============================================================================
 
 const GITHUB_RE = /https?:\/\/github\.com\/[a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)?/gi;
+
+/**
+ * The website as a canonical https://github.com/<owner>[/<repo>] URL when it
+ * is hosted on github.com (with or without www. or a scheme), else null.
+ * A website that merely mentions github.com somewhere is not a GitHub link.
+ */
+export function githubUrlFromWebsite(website: string): string | null {
+    const value = website.trim();
+    if (!value) return null;
+    let url: URL;
+    try {
+        url = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`);
+    } catch {
+        return null;
+    }
+    if (!/^(?:www\.)?github\.com$/i.test(url.hostname)) return null;
+    const [owner, repo] = url.pathname.split('/').filter(Boolean);
+    if (!owner || !/^[A-Za-z0-9_.-]+$/.test(owner)) return null;
+    return repo && /^[A-Za-z0-9_.-]+$/.test(repo) ? `https://github.com/${owner}/${repo}` : `https://github.com/${owner}`;
+}
 
 /** Extract GitHub URLs from token description or metadata. */
 export function extractGithubUrls(text: string): string[] {

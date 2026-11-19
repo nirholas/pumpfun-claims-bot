@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
     extractGithubUrls,
+    githubUrlFromWebsite,
     formatSol,
     formatTokenAmount,
     fetchTokenInfo,
@@ -20,6 +21,26 @@ import {
 } from '../pump-client.js';
 
 // ── extractGithubUrls ────────────────────────────────────────────────────────
+
+describe('githubUrlFromWebsite', () => {
+    it.each([
+        ['https://github.com/owner/repo/tree/main', 'https://github.com/owner/repo'],
+        ['www.github.com/owner', 'https://github.com/owner'],
+        ['github.com/owner/repo', 'https://github.com/owner/repo'],
+    ])('canonicalises %s', (website, expected) => {
+        expect(githubUrlFromWebsite(website)).toBe(expected);
+    });
+
+    it.each([
+        'https://evil.example/?ref=github.com',
+        'https://github.com.evil.example/owner',
+        'https://evil.example/github.com/owner',
+        'https://github.com/',
+        '',
+    ])('rejects %j', (website) => {
+        expect(githubUrlFromWebsite(website)).toBeNull();
+    });
+});
 
 describe('extractGithubUrls', () => {
     it('extracts a single GitHub URL from text', () => {
@@ -137,6 +158,16 @@ describe('fetchTokenInfo', () => {
         expect(result?.mint).toBe('ABC123');
         expect(result?.usdMarketCap).toBe(50_000);
         expect(result?.complete).toBe(false);
+    });
+
+    it('lists a github.com website as a repo but not a site that merely mentions github.com', async () => {
+        const coin = (website: string) => new Response(JSON.stringify({ mint: website.length > 30 ? 'MintW1' : 'MintW2', name: 'n', symbol: 's', website }), { status: 200 });
+        vi.mocked(fetch)
+            .mockResolvedValueOnce(coin('https://evil.example/?github.com'))
+            .mockResolvedValueOnce(coin('www.github.com/dev'));
+
+        expect((await fetchTokenInfo('MintW1'))?.githubUrls).toEqual([]);
+        expect((await fetchTokenInfo('MintW2'))?.githubUrls).toEqual(['https://github.com/dev']);
     });
 
     it('returns null for 404', async () => {
