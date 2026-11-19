@@ -262,6 +262,23 @@ describe('formatGitHubClaimFeed with hostile metadata', () => {
     });
 });
 
+describe('formatGitHubClaimFeed trade links', () => {
+    const verified = makeClaimFeedContext({ githubUser: makeGitHubUser({ login: 'testdev' }) });
+
+    it('carries the configured referral codes', () => {
+        const { caption } = formatGitHubClaimFeed({ ...verified, affiliates: { axiom: 'ax1', gmgn: 'gm2', padre: 'pd3' } });
+        expect(caption).toContain(`https://axiom.trade/t/${verified.event.tokenMint}?ref=ax1`);
+        expect(caption).toContain(`https://gmgn.ai/sol/token/${verified.event.tokenMint}?ref=gm2`);
+        expect(caption).toContain('https://trade.padre.gg/rk/pd3');
+    });
+
+    it('carries no referral code when none is configured', () => {
+        const { caption } = formatGitHubClaimFeed(verified);
+        expect(caption).toContain(`<a href="https://axiom.trade/t/${verified.event.tokenMint}">Axiom</a>`);
+        expect(caption).not.toMatch(/[?&]ref=/);
+    });
+});
+
 // ── formatCreatorClaimFeed ───────────────────────────────────────────────────
 
 describe('formatCreatorClaimFeed', () => {

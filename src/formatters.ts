@@ -25,6 +25,7 @@ export interface ClaimFeedContext {
     githubUser: GitHubUserInfo | null;
     xProfile: XProfile | null;
     tokenInfo?: TokenInfo | null;
+    /** Referral codes for the trade links (AXIOM_REF, GMGN_REF, PADRE_REF); links carry none when absent. */
     affiliates?: { axiom: string; gmgn: string; padre: string };
     /** True when this GitHub user is claiming for the very first time. */
     isFirstClaim?: boolean;
@@ -498,9 +499,10 @@ export function formatGitHubClaimFeed(ctx: ClaimFeedContext): { imageUrl: string
 
     // ━━ TRADE LINKS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     if (mint && (attribution.status === 'verified_repository' || attribution.status === 'verified_creator_wallet')) {
-        const axiomUrl = `https://axiom.trade/t/${encodeURIComponent(mint)}?ref=${encodeURIComponent(aff?.axiom ?? 'nich')}`;
-        const gmgnUrl  = `https://gmgn.ai/sol/token/${encodeURIComponent(mint)}?ref=${encodeURIComponent(aff?.gmgn ?? 'nichxbt')}`;
-        const padreUrl = `https://trade.padre.gg/rk/${encodeURIComponent(aff?.padre ?? 'nichxbt')}`;
+        const ref = (code: string | undefined) => (code ? `?ref=${encodeURIComponent(code)}` : '');
+        const axiomUrl = `https://axiom.trade/t/${encodeURIComponent(mint)}${ref(aff?.axiom)}`;
+        const gmgnUrl  = `https://gmgn.ai/sol/token/${encodeURIComponent(mint)}${ref(aff?.gmgn)}`;
+        const padreUrl = aff?.padre ? `https://trade.padre.gg/rk/${encodeURIComponent(aff.padre)}` : 'https://trade.padre.gg/';
         L.push(`💹 Trade`);
         L.push(`${link(axiomUrl, 'Axiom')} | ${link(gmgnUrl, 'GMGN')} | ${link(padreUrl, 'Padre')}`);
         L.push('');
