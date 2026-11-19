@@ -34,7 +34,7 @@
  *   new_shareholders: vec<Shareholder>
  */
 
-import { PublicKey, type AccountInfo } from '@solana/web3.js';
+import { PublicKey } from '@solana/web3.js';
 import type { RpcFallback } from './rpc-fallback.js';
 import { log } from './logger.js';
 
@@ -52,6 +52,11 @@ export const UPDATE_FEE_SHARES_EVENT_DISC = '15bac4b85be4e1cb';
 const PUMP_FEE_PROGRAM_ID = 'pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** web3.js 3 returns account data as a Uint8Array; the Borsh readers need a Buffer view of it. */
+function asBuffer(data: Uint8Array): Buffer {
+    return Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+}
 
 function readPubkey(buf: Buffer, offset: number): string {
     if (buf.length < offset + 32) return '';
@@ -147,7 +152,7 @@ export class SocialFeeIndex {
                         },
                     ],
                 }),
-            ) as unknown as Array<{ pubkey: PublicKey; account: unknown }>;
+            );
 
             // Keep only the pubkeys so V8 can reclaim the AccountInfo objects before
             // we start phase 2.
@@ -164,7 +169,7 @@ export class SocialFeeIndex {
             let indexed = 0;
 
             for (let i = 0; i < total; i += BATCH * CONCURRENCY) {
-                const promises: Promise<(AccountInfo<Buffer> | null)[] | null>[] = [];
+                const promises: Promise<ReadonlyArray<{ readonly data: Uint8Array } | null> | null>[] = [];
                 for (let j = i; j < Math.min(i + BATCH * CONCURRENCY, total); j += BATCH) {
                     const slice = pubkeys.slice(j, Math.min(j + BATCH, total));
                     promises.push(
@@ -185,7 +190,7 @@ export class SocialFeeIndex {
                     if (!accts) continue;
                     for (const acct of accts) {
                         if (!acct) continue;
-                        const data = acct.data as Buffer;
+                        const data = asBuffer(acct.data);
                         if (data.length < 76) continue;
                         const mint = readPubkey(data, 11);
                         if (!mint) continue;
@@ -312,7 +317,7 @@ export class SocialFeeIndex {
                 conn.getAccountInfo(new PublicKey(address), { commitment: 'confirmed' }),
             );
             if (info?.data) {
-                const data = Buffer.isBuffer(info.data) ? info.data : Buffer.from(info.data as Uint8Array);
+                const data = asBuffer(info.data);
                 if (data.length >= 43 && data.subarray(0, 8).equals(SHARING_CONFIG_DISC)) {
                     const mint = readPubkey(data, 11);
                     if (mint) {
@@ -349,14 +354,12 @@ export class SocialFeeIndex {
                         },
                     ],
                 }),
-            ) as unknown as Array<{ pubkey: PublicKey; account: { data: Buffer } }>;
+            );
 
             if (accounts.length > 0) {
                 let added = 0;
                 for (const acct of accounts) {
-                    const data = Buffer.isBuffer(acct.account.data)
-                        ? acct.account.data
-                        : Buffer.from(acct.account.data as Uint8Array);
+                    const data = asBuffer(acct.account.data);
                     if (data.length >= 43) {
                         const mint = readPubkey(data, 11);
                         if (mint) { this.addMapping(address, mint); added++; }

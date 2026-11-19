@@ -268,7 +268,7 @@ export class EventMonitor {
                 signature,
                 logs: logMessages,
                 err: null,
-            }, tx.blockTime);
+            }, tx.blockTime == null ? null : Number(tx.blockTime));
         } catch (err) {
             log.debug('Failed to fetch tx %s: %s', signature.slice(0, 8), err);
         }

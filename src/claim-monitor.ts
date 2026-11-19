@@ -581,8 +581,10 @@ export class ClaimMonitor {
             }));
             if (!tx?.meta || tx.meta.err) return;
 
-            const timestamp = tx.blockTime ?? Math.floor(Date.now() / 1000);
-            const slot = tx.slot;
+            // web3.js 3 returns bigint slots, block times and balances; they are
+            // converted to numbers here, at the RPC boundary.
+            const timestamp = tx.blockTime != null ? Number(tx.blockTime) : Math.floor(Date.now() / 1000);
+            const slot = Number(tx.slot);
 
             // One payout per claim instruction, each read from its own event.
             // Sweeps (curve or pool to creator vault) are never claims and never
@@ -670,7 +672,7 @@ export class ClaimMonitor {
                 (a) => a.pubkey.toBase58() === signerKey,
             );
             if (signerIdx >= 0 && signerIdx < preBalances.length) {
-                const diff = (postBalances[signerIdx] ?? 0) - (preBalances[signerIdx] ?? 0);
+                const diff = Number(BigInt(postBalances[signerIdx] ?? 0n) - BigInt(preBalances[signerIdx] ?? 0n));
                 if (diff > 0) amountLamports = diff;
             }
         }
