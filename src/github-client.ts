@@ -6,6 +6,7 @@
  */
 
 import { TtlCache } from './bounded.js';
+import { asRecord, bool, num, optStr, str, type JsonRecord } from './json-fields.js';
 import { log } from './logger.js';
 
 const GITHUB_API = 'https://api.github.com';
@@ -143,25 +144,24 @@ export async function fetchGitHubRepo(owner: string, repo: string): Promise<GitH
             return null;
         }
 
-        const raw = (await resp.json()) as Record<string, unknown>;
-
-        const lastPush = String(raw.pushed_at ?? '');
+        const raw = asRecord(await resp.json());
+        const lastPush = str(raw.pushed_at);
 
         const info: GitHubRepoInfo = {
-            fullName: String(raw.full_name ?? `${owner}/${repo}`),
-            description: String(raw.description ?? ''),
-            language: raw.language ? String(raw.language) : null,
-            stars: Number(raw.stargazers_count ?? 0),
-            forks: Number(raw.forks_count ?? 0),
-            openIssues: Number(raw.open_issues_count ?? 0),
+            fullName: str(raw.full_name, `${owner}/${repo}`),
+            description: str(raw.description),
+            language: optStr(raw.language) ?? null,
+            stars: num(raw.stargazers_count),
+            forks: num(raw.forks_count),
+            openIssues: num(raw.open_issues_count),
             lastPush,
             lastPushAgo: lastPush ? timeAgo(new Date(lastPush).getTime() / 1000) : 'unknown',
-            createdAt: String(raw.created_at ?? ''),
-            defaultBranch: String(raw.default_branch ?? 'main'),
-            isFork: Boolean(raw.fork),
+            createdAt: str(raw.created_at),
+            defaultBranch: str(raw.default_branch, 'main'),
+            isFork: bool(raw.fork),
             topics: Array.isArray(raw.topics) ? raw.topics.filter((t): t is string => typeof t === 'string').slice(0, 5) : [],
-            htmlUrl: String(raw.html_url ?? `https://github.com/${owner}/${repo}`),
-            ownerAvatar: String((raw.owner as Record<string, unknown>)?.avatar_url ?? ''),
+            htmlUrl: str(raw.html_url, `https://github.com/${owner}/${repo}`),
+            ownerAvatar: str(asRecord(raw.owner).avatar_url),
             commitCount: null,
         };
 
@@ -214,8 +214,7 @@ export async function fetchGitHubUser(username: string): Promise<GitHubUserInfo 
             return null;
         }
 
-        const raw = (await resp.json()) as Record<string, unknown>;
-        const info = parseUserResponse(raw, username);
+        const info = parseUserResponse(asRecord(await resp.json()), username);
 
         userCache.set(key, info, REPO_CACHE_TTL);
         return info;
@@ -226,22 +225,22 @@ export async function fetchGitHubUser(username: string): Promise<GitHubUserInfo 
 }
 
 /** Parse a raw GitHub API user response into GitHubUserInfo. */
-function parseUserResponse(raw: Record<string, unknown>, fallbackLogin = ''): GitHubUserInfo {
+function parseUserResponse(raw: JsonRecord, fallbackLogin = ''): GitHubUserInfo {
     return {
-        login: String(raw.login ?? fallbackLogin),
-        name: raw.name ? String(raw.name) : null,
-        bio: raw.bio ? String(raw.bio) : null,
-        htmlUrl: String(raw.html_url ?? ''),
-        avatarUrl: String(raw.avatar_url ?? ''),
-        publicRepos: Number(raw.public_repos ?? 0),
-        followers: Number(raw.followers ?? 0),
-        following: Number(raw.following ?? 0),
-        company: raw.company ? String(raw.company) : null,
-        location: raw.location ? String(raw.location) : null,
-        blog: raw.blog ? String(raw.blog) : null,
-        twitterUsername: raw.twitter_username ? String(raw.twitter_username) : null,
-        createdAt: String(raw.created_at ?? ''),
-        hireable: Boolean(raw.hireable),
+        login: str(raw.login, fallbackLogin),
+        name: optStr(raw.name) ?? null,
+        bio: optStr(raw.bio) ?? null,
+        htmlUrl: str(raw.html_url),
+        avatarUrl: str(raw.avatar_url),
+        publicRepos: num(raw.public_repos),
+        followers: num(raw.followers),
+        following: num(raw.following),
+        company: optStr(raw.company) ?? null,
+        location: optStr(raw.location) ?? null,
+        blog: optStr(raw.blog) ?? null,
+        twitterUsername: optStr(raw.twitter_username) ?? null,
+        createdAt: str(raw.created_at),
+        hireable: bool(raw.hireable),
     };
 }
 
@@ -274,7 +273,7 @@ export async function fetchGitHubUserById(userId: string): Promise<GitHubUserInf
             }
             return null;
         }
-        const info = parseUserResponse((await resp.json()) as Record<string, unknown>);
+        const info = parseUserResponse(asRecord(await resp.json()));
         userCache.set(cacheKey, info);
         return info;
     } catch (err) {

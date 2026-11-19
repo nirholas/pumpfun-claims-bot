@@ -9,6 +9,7 @@
  */
 
 import { TtlCache } from './bounded.js';
+import { asRecord, num, optStr, str } from './json-fields.js';
 import { log } from './logger.js';
 
 const X_AUTH_TOKEN = process.env.X_AUTH_TOKEN ?? '';
@@ -130,14 +131,9 @@ export function isXCommunityUrl(input: string | null | undefined): boolean {
     return /^https?:\/\/(?:www\.)?(?:twitter|x)\.com\/i\/communities\//i.test(input?.trim() ?? '');
 }
 
-/** A property of a JSON object, or undefined when the value is not an object. */
-function field(value: unknown, key: string): unknown {
-    return value !== null && typeof value === 'object' ? (value as Record<string, unknown>)[key] : undefined;
-}
-
+/** A follower/tweet count: a non-negative whole number, else 0. */
 function count(value: unknown): number {
-    const n = Number.parseInt(String(value ?? '0'), 10);
-    return Number.isFinite(n) && n > 0 ? n : 0;
+    return Math.max(0, Math.trunc(num(value)));
 }
 
 // ============================================================================
@@ -205,27 +201,24 @@ export async function fetchXProfile(usernameOrUrl: string): Promise<XProfile | n
             return null;
         }
 
-        const body: unknown = await resp.json();
-        const userResult = field(field(field(body, 'data'), 'user'), 'result');
-        const legacy = field(userResult, 'legacy');
-        if (!legacy || field(userResult, '__typename') === 'UserUnavailable') {
+        const userResult = asRecord(asRecord(asRecord(asRecord(await resp.json()).data).user).result);
+        const legacy = asRecord(userResult.legacy);
+        if (Object.keys(legacy).length === 0 || userResult.__typename === 'UserUnavailable') {
             setCache(username, null);
             return null;
         }
 
-        const screenName = parseXHandle(String(field(legacy, 'screen_name') ?? '')) ?? username;
-        const description = field(legacy, 'description');
-        const createdAt = field(legacy, 'created_at');
+        const screenName = parseXHandle(str(legacy.screen_name)) ?? username;
         const profile: XProfile = {
             username: screenName,
-            name: String(field(legacy, 'name') ?? ''),
-            followers: count(field(legacy, 'followers_count')),
-            following: count(field(legacy, 'friends_count')),
-            verified: Boolean(field(legacy, 'verified') || field(userResult, 'is_blue_verified')),
-            description: description ? String(description) : null,
+            name: str(legacy.name),
+            followers: count(legacy.followers_count),
+            following: count(legacy.friends_count),
+            verified: legacy.verified === true || userResult.is_blue_verified === true,
+            description: optStr(legacy.description) ?? null,
             url: `https://x.com/${screenName}`,
-            createdAt: createdAt ? String(createdAt) : null,
-            tweetCount: count(field(legacy, 'statuses_count')),
+            createdAt: optStr(legacy.created_at) ?? null,
+            tweetCount: count(legacy.statuses_count),
         };
 
         setCache(username, profile);
@@ -274,6 +267,6 @@ export function influencerLabel(tier: InfluencerTier): string {
         case 'mega': return '🔥🔥 MEGA INFLUENCER';
         case 'influencer': return '🔥 Influencer';
         case 'notable': return '⭐ Notable';
-        default: return '';
+        case null: return '';
     }
 }

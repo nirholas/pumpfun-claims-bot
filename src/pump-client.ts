@@ -6,7 +6,9 @@
  */
 
 import { TtlCache } from './bounded.js';
+import { asArray, asRecord, bool, num, optStr, str, type JsonRecord } from './json-fields.js';
 import { log } from './logger.js';
+import { WSOL_MINT } from './types.js';
 
 const PUMPFUN_API = 'https://frontend-api-v3.pump.fun';
 const LAMPORTS_PER_SOL = 1_000_000_000;
@@ -116,12 +118,12 @@ async function fetchTokenInfoPump(mint: string): Promise<TokenInfo | null> {
             return null;
         }
 
-        const raw = (await resp.json()) as Record<string, unknown>;
+        const raw = asRecord(await resp.json());
 
-        const virtualSolReserves = Number(raw.virtual_sol_reserves ?? 0);
-        const virtualTokenReserves = Number(raw.virtual_token_reserves ?? 0);
-        const totalSupply = Number(raw.total_supply ?? 0);
-        const complete = Boolean(raw.complete);
+        const virtualSolReserves = num(raw.virtual_sol_reserves);
+        const virtualTokenReserves = num(raw.virtual_token_reserves);
+        const totalSupply = num(raw.total_supply);
+        const complete = bool(raw.complete);
 
         const priceSol =
             virtualTokenReserves > 0 ? virtualSolReserves / virtualTokenReserves : 0;
@@ -131,14 +133,14 @@ async function fetchTokenInfoPump(mint: string): Promise<TokenInfo | null> {
                 : 0;
 
         // Bonding curve progress: realSolReserves / ~85 SOL threshold
-        const realSolReserves = Number(raw.real_sol_reserves ?? 0) / LAMPORTS_PER_SOL;
+        const realSolReserves = num(raw.real_sol_reserves) / LAMPORTS_PER_SOL;
         const curveProgress = complete ? 100 : Math.min(99, (realSolReserves / 85) * 100);
 
-        const description = String(raw.description ?? '');
-        const website = raw.website ? String(raw.website) : '';
-        const twitter = raw.twitter ? String(raw.twitter) : '';
-        const telegram = raw.telegram ? String(raw.telegram) : '';
-        const metadataUri = String(raw.metadata_uri ?? raw.uri ?? '');
+        const description = str(raw.description);
+        const website = str(raw.website);
+        const twitter = str(raw.twitter);
+        const telegram = str(raw.telegram);
+        const metadataUri = str(raw.metadata_uri ?? raw.uri);
 
         // Extract GitHub URLs from ALL fields: description, website, socials, metadata
         const githubUrls = extractGithubUrls(
@@ -148,44 +150,33 @@ async function fetchTokenInfoPump(mint: string): Promise<TokenInfo | null> {
         const websiteRepo = githubUrlFromWebsite(website);
         if (websiteRepo && !githubUrls.includes(websiteRepo)) githubUrls.push(websiteRepo);
 
-        // Timestamps from API are ms — normalize to seconds
-        const createdTs = Number(raw.created_timestamp ?? 0);
-        const createdTimestamp = createdTs > 1e12 ? Math.floor(createdTs / 1000) : createdTs;
-        const kothTs = Number(raw.king_of_the_hill_timestamp ?? 0);
-        const kothTimestamp = kothTs > 1e12 ? Math.floor(kothTs / 1000) : kothTs;
-        const athTs = Number(raw.ath_market_cap_timestamp ?? 0);
-        const athTimestamp = athTs > 1e12 ? Math.floor(athTs / 1000) : athTs;
-        const lastTradeTs = Number(raw.last_trade_timestamp ?? 0);
-        const lastTradeTimestamp = lastTradeTs > 1e12 ? Math.floor(lastTradeTs / 1000) : lastTradeTs;
-        const lastReplyTs = Number(raw.last_reply ?? 0);
-        const lastReplyTimestamp = lastReplyTs > 1e12 ? Math.floor(lastReplyTs / 1000) : lastReplyTs;
-
         return {
-            mint: String(raw.mint ?? mint),
-            name: String(raw.name ?? 'Unknown'),
-            symbol: String(raw.symbol ?? '???'),
+            mint: str(raw.mint, mint),
+            name: str(raw.name, 'Unknown'),
+            symbol: str(raw.symbol, '???'),
             description,
-            imageUri: String(raw.image_uri ?? ''),
-            bannerUri: String(raw.banner_uri ?? ''),
-            creator: String(raw.creator ?? ''),
-            createdTimestamp,
+            imageUri: str(raw.image_uri),
+            bannerUri: str(raw.banner_uri),
+            creator: str(raw.creator),
+            // Timestamps from the API are ms; normalised to seconds.
+            createdTimestamp: toSeconds(raw.created_timestamp),
             complete,
-            usdMarketCap: Number(raw.usd_market_cap ?? 0),
-            marketCapSol: Number(raw.market_cap ?? marketCapSol),
+            usdMarketCap: num(raw.usd_market_cap),
+            marketCapSol: num(raw.market_cap, marketCapSol),
             priceSol,
             curveProgress,
-            athMarketCap: Number(raw.ath_market_cap ?? 0),
-            athTimestamp,
-            kothTimestamp,
-            lastTradeTimestamp,
-            lastReplyTimestamp,
-            replyCount: Number(raw.reply_count ?? 0),
-            pumpSwapPool: String(raw.pump_swap_pool ?? ''),
-            program: String(raw.program ?? 'pump'),
-            isCashbackEnabled: Boolean(raw.is_cashback_enabled),
-            isNsfw: Boolean(raw.nsfw),
-            isBanned: Boolean(raw.is_banned),
-            isHackathon: Boolean(raw.is_hackathon),
+            athMarketCap: num(raw.ath_market_cap),
+            athTimestamp: toSeconds(raw.ath_market_cap_timestamp),
+            kothTimestamp: toSeconds(raw.king_of_the_hill_timestamp),
+            lastTradeTimestamp: toSeconds(raw.last_trade_timestamp),
+            lastReplyTimestamp: toSeconds(raw.last_reply),
+            replyCount: num(raw.reply_count),
+            pumpSwapPool: str(raw.pump_swap_pool),
+            program: str(raw.program, 'pump'),
+            isCashbackEnabled: bool(raw.is_cashback_enabled),
+            isNsfw: bool(raw.nsfw),
+            isBanned: bool(raw.is_banned),
+            isHackathon: bool(raw.is_hackathon),
             website: website || undefined,
             twitter: twitter || undefined,
             telegram: telegram || undefined,
@@ -206,33 +197,29 @@ async function fetchTokenInfoDexScreener(mint: string): Promise<TokenInfo | null
         );
         if (!resp.ok) return null;
 
-        const data = (await resp.json()) as { pairs?: Array<Record<string, unknown>> };
-        const pair = data.pairs?.[0];
-        if (!pair) return null;
-
-        const base = pair.baseToken as Record<string, unknown> | undefined;
-        const info = pair.info as Record<string, unknown> | undefined;
-        const socials = Array.isArray(info?.socials)
-            ? (info!.socials as Array<Record<string, string>>)
-            : [];
+        const pairs = asArray(asRecord(await resp.json()).pairs);
+        if (pairs.length === 0) return null;
+        const pair = asRecord(pairs[0]);
+        const base = asRecord(pair.baseToken);
+        const info = asRecord(pair.info);
+        const socials = asArray(info.socials).map(asRecord);
+        const socialUrl = (type: string) => optStr(socials.find((s) => s.type === type)?.url);
 
         log.debug('DexScreener fallback used for %s', mint.slice(0, 8));
 
         return {
             mint,
-            name: String(base?.name ?? 'Unknown'),
-            symbol: String(base?.symbol ?? '???'),
+            name: str(base.name, 'Unknown'),
+            symbol: str(base.symbol, '???'),
             description: '',
-            imageUri: String(info?.imageUrl ?? ''),
+            imageUri: str(info.imageUrl),
             bannerUri: '',
             creator: '',
-            createdTimestamp: pair.pairCreatedAt
-                ? Math.floor(Number(pair.pairCreatedAt) / 1000)
-                : 0,
+            createdTimestamp: toSeconds(pair.pairCreatedAt),
             complete: true,
-            usdMarketCap: Number(pair.marketCap ?? pair.fdv ?? 0),
+            usdMarketCap: num(pair.marketCap ?? pair.fdv),
             marketCapSol: 0,
-            priceSol: Number(pair.priceNative ?? 0),
+            priceSol: num(pair.priceNative),
             curveProgress: 100,
             athMarketCap: 0,
             athTimestamp: 0,
@@ -246,9 +233,9 @@ async function fetchTokenInfoDexScreener(mint: string): Promise<TokenInfo | null
             isNsfw: false,
             isBanned: false,
             isHackathon: false,
-            website: (info?.websites as Array<Record<string, string>>)?.[0]?.url,
-            twitter: socials.find((s) => s.type === 'twitter')?.url,
-            telegram: socials.find((s) => s.type === 'telegram')?.url,
+            website: optStr(asRecord(asArray(info.websites)[0]).url),
+            twitter: socialUrl('twitter'),
+            telegram: socialUrl('telegram'),
             githubUrls: [],
         };
     } catch (err) {
@@ -282,10 +269,10 @@ export async function fetchCreatorProfile(wallet: string): Promise<CreatorProfil
             { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8_000) },
         );
         if (userResp.ok) {
-            const user = (await userResp.json()) as Record<string, unknown>;
-            profile.username = String(user.username ?? '');
-            profile.profileImage = String(user.profile_image ?? '');
-            profile.followers = Number(user.followers ?? 0);
+            const user = asRecord(await userResp.json());
+            profile.username = str(user.username);
+            profile.profileImage = str(user.profile_image);
+            profile.followers = num(user.followers);
         }
     } catch (err) {
         log.debug('User profile fetch failed for %s: %s', wallet.slice(0, 8), err);
@@ -298,19 +285,16 @@ export async function fetchCreatorProfile(wallet: string): Promise<CreatorProfil
             { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10_000) },
         );
         if (coinsResp.ok) {
-            const coins = (await coinsResp.json()) as Array<Record<string, unknown>>;
+            const coins = asArray(await coinsResp.json()).map(asRecord);
             profile.totalLaunches = coins.length;
             // Estimate scams/rugs: non-graduated coins with very low market cap
-            profile.scamEstimate = coins.filter((c) => {
-                const mc = Number(c.usd_market_cap ?? 0);
-                return !Boolean(c.complete) && mc < 500;
-            }).length;
+            profile.scamEstimate = coins.filter((c) => !bool(c.complete) && num(c.usd_market_cap) < 500).length;
             profile.recentCoins = coins.slice(0, 5).map((c) => ({
-                mint: String(c.mint ?? ''),
-                name: String(c.name ?? 'Unknown'),
-                symbol: String(c.symbol ?? '???'),
-                complete: Boolean(c.complete),
-                usdMarketCap: Number(c.usd_market_cap ?? 0),
+                mint: str(c.mint),
+                name: str(c.name, 'Unknown'),
+                symbol: str(c.symbol, '???'),
+                complete: bool(c.complete),
+                usdMarketCap: num(c.usd_market_cap),
             }));
         }
     } catch (err) {
@@ -324,6 +308,12 @@ export async function fetchCreatorProfile(wallet: string): Promise<CreatorProfil
 // ============================================================================
 // Helpers
 // ============================================================================
+
+/** A unix timestamp in seconds, from seconds or milliseconds; 0 when absent. */
+function toSeconds(value: unknown): number {
+    const ts = num(value);
+    return ts > 1e12 ? Math.floor(ts / 1000) : ts;
+}
 
 export function formatSol(lamports: number): string {
     const val = lamports / LAMPORTS_PER_SOL;
@@ -389,12 +379,11 @@ export async function fetchTokenTrades(mint: string): Promise<TokenTradeInfo> {
             { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8_000) },
         );
         if (resp.ok) {
-            const trades = (await resp.json()) as Array<Record<string, unknown>>;
+            const trades = asArray(await resp.json()).map(asRecord);
             result.recentTradeCount = trades.length;
             for (const t of trades) {
-                const sol = Number(t.sol_amount ?? 0) / LAMPORTS_PER_SOL;
-                result.recentVolumeSol += sol;
-                if (Boolean(t.is_buy)) result.buyCount++;
+                result.recentVolumeSol += num(t.sol_amount) / LAMPORTS_PER_SOL;
+                if (bool(t.is_buy)) result.buyCount++;
                 else result.sellCount++;
             }
         }
@@ -431,12 +420,11 @@ export async function fetchSolUsdPrice(): Promise<number> {
 async function fetchSolPriceJupiter(): Promise<number> {
     try {
         const resp = await fetch(
-            'https://api.jup.ag/price/v2?ids=So11111111111111111111111111111111111111112',
+            `https://api.jup.ag/price/v2?ids=${WSOL_MINT}`,
             { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(5_000) },
         );
         if (!resp.ok) return 0;
-        const data = (await resp.json()) as Record<string, Record<string, Record<string, unknown>>>;
-        return Number(data?.data?.['So11111111111111111111111111111111111111112']?.price ?? 0);
+        return num(asRecord(asRecord(asRecord(await resp.json()).data)[WSOL_MINT]).price);
     } catch {
         return 0;
     }
@@ -450,8 +438,7 @@ async function fetchSolPriceCoinGecko(): Promise<number> {
             { signal: AbortSignal.timeout(5_000) },
         );
         if (!resp.ok) return 0;
-        const data = (await resp.json()) as Record<string, Record<string, number>>;
-        const price = data?.solana?.usd ?? 0;
+        const price = num(asRecord(asRecord(await resp.json()).solana).usd);
         if (price > 0) log.debug('SOL price from CoinGecko fallback: $%d', price);
         return price;
     } catch {
@@ -467,8 +454,7 @@ async function fetchSolPriceBinance(): Promise<number> {
             { signal: AbortSignal.timeout(5_000) },
         );
         if (!resp.ok) return 0;
-        const data = (await resp.json()) as Record<string, string>;
-        const price = Number(data?.price ?? 0);
+        const price = num(asRecord(await resp.json()).price);
         if (price > 0) log.debug('SOL price from Binance fallback: $%d', price);
         return price;
     } catch {
@@ -505,22 +491,18 @@ export async function fetchTopHolders(mint: string): Promise<HolderDetails> {
         );
         if (!resp.ok) return result;
 
-        const data = await resp.json();
-        const holders = Array.isArray(data) ? data : (data as Record<string, unknown>).holders;
+        const data: unknown = await resp.json();
+        const holders = Array.isArray(data) ? data : asRecord(data).holders;
         if (!Array.isArray(holders)) return result;
-
-        if (typeof data === 'object' && data !== null && 'total' in data) {
-            result.totalHolders = Number((data as Record<string, unknown>).total ?? holders.length);
-        } else {
-            result.totalHolders = holders.length;
-        }
+        result.totalHolders = num(asRecord(data).total, holders.length);
 
         for (const h of holders.slice(0, 20)) {
-            const raw = h as Record<string, unknown>;
-            const address = String(raw.address ?? raw.owner ?? '');
-            const pct = Number(raw.percentage ?? raw.pct ?? 0);
-            const isPool = Boolean(raw.is_bonding_curve ?? raw.isPool ?? false);
-            result.topHolders.push({ address, pct, isPool });
+            const raw = asRecord(h);
+            result.topHolders.push({
+                address: str(raw.address ?? raw.owner),
+                pct: num(raw.percentage ?? raw.pct),
+                isPool: bool(raw.is_bonding_curve ?? raw.isPool),
+            });
         }
 
         // top10 excluding pool
@@ -565,8 +547,7 @@ export async function fetchDevWalletInfo(
             signal: AbortSignal.timeout(8_000),
         });
         if (balResp.ok) {
-            const balData = (await balResp.json()) as { result?: { value?: number } };
-            result.solBalance = (balData.result?.value ?? 0) / LAMPORTS_PER_SOL;
+            result.solBalance = num(asRecord(asRecord(await balResp.json()).result).value) / LAMPORTS_PER_SOL;
         }
     } catch (err) {
         log.debug('Dev SOL balance fetch failed for %s: %s', devWallet.slice(0, 8), err);
@@ -588,13 +569,11 @@ export async function fetchDevWalletInfo(
             signal: AbortSignal.timeout(8_000),
         });
         if (tokenResp.ok) {
-            const tokenData = (await tokenResp.json()) as {
-                result?: { value?: Array<{ account: { data: { parsed: { info: { tokenAmount: { uiAmount: number } } } } } }> }
-            };
-            const accounts = tokenData.result?.value ?? [];
+            const accounts = asArray(asRecord(asRecord(await tokenResp.json()).result).value);
             let totalTokens = 0;
             for (const acct of accounts) {
-                totalTokens += acct.account?.data?.parsed?.info?.tokenAmount?.uiAmount ?? 0;
+                const parsed = asRecord(asRecord(asRecord(asRecord(acct).account).data).parsed);
+                totalTokens += num(asRecord(asRecord(parsed.info).tokenAmount).uiAmount);
             }
             // Total supply is 1B tokens (1_000_000_000)
             const TOTAL_SUPPLY = 1_000_000_000;
@@ -625,11 +604,8 @@ export async function fetchPoolLiquidity(mint: string, usdMarketCap: number): Pr
             { signal: AbortSignal.timeout(8_000) },
         );
         if (!resp.ok) return null;
-        const data = (await resp.json()) as { pairs?: Array<Record<string, unknown>> };
-        const pair = data.pairs?.[0];
-        if (!pair) return null;
-        const liqObj = pair.liquidity as Record<string, number> | undefined;
-        const liquidityUsd = liqObj?.usd ?? 0;
+        const pair = asRecord(asArray(asRecord(await resp.json()).pairs)[0]);
+        const liquidityUsd = num(asRecord(pair.liquidity).usd);
         if (liquidityUsd <= 0) return null;
         const liquidityMultiplier = usdMarketCap > 0 ? Math.round(usdMarketCap / liquidityUsd) : 0;
         return { liquidityUsd, liquidityMultiplier };
@@ -662,19 +638,15 @@ export async function fetchBundleInfo(mint: string): Promise<BundleInfo | null> 
             { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10_000) },
         );
         if (!resp.ok) return null;
-        const raw = await resp.json();
-        const trades = Array.isArray(raw) ? raw : ((raw as Record<string, unknown>).trades as Array<Record<string, unknown>> ?? []);
+        const raw: unknown = await resp.json();
+        const trades = (Array.isArray(raw) ? raw : asArray(asRecord(raw).trades)).map(asRecord);
         if (!trades.length) return null;
 
-        // Normalize timestamp to seconds
-        const ts = (t: Record<string, unknown>) => {
-            const v = Number(t.timestamp ?? 0);
-            return v > 1e12 ? Math.floor(v / 1000) : v;
-        };
+        const ts = (t: JsonRecord) => toSeconds(t.timestamp);
 
         // Sort chronologically, buy-only
         const buys = trades
-            .filter(t => Boolean(t.is_buy))
+            .filter(t => bool(t.is_buy))
             .sort((a, b) => ts(a) - ts(b));
         if (buys.length < 2) return null;
 
@@ -683,12 +655,12 @@ export async function fetchBundleInfo(mint: string): Promise<BundleInfo | null> 
         const slotBuys = buys.filter(t => ts(t) <= firstTs + 2);
         if (slotBuys.length < 2) return null;
 
-        const wallets = new Set(slotBuys.map(t => String(t.user ?? '')));
+        const wallets = new Set(slotBuys.map(t => str(t.user)));
         if (wallets.size < 2) return null;
 
         // 1B tokens × 10^6 decimals = total raw supply
         const TOTAL_SUPPLY_RAW = 1_000_000_000_000_000;
-        const bundleTokens = slotBuys.reduce((sum, t) => sum + Number(t.token_amount ?? 0), 0);
+        const bundleTokens = slotBuys.reduce((sum, t) => sum + num(t.token_amount), 0);
         const bundlePct = Math.min(100, (bundleTokens / TOTAL_SUPPLY_RAW) * 100);
 
         return { bundlePct, bundleWallets: wallets.size };
@@ -732,8 +704,7 @@ export async function fetchSameNameTokens(
             { signal: AbortSignal.timeout(8_000) },
         );
         if (!resp.ok) return [];
-        const data = (await resp.json()) as { pairs?: Array<Record<string, unknown>> };
-        if (!data.pairs) return [];
+        const pairs = asArray(asRecord(await resp.json()).pairs).map(asRecord);
 
         const nameLower = name.toLowerCase();
         const symbolLower = symbol.toLowerCase();
@@ -742,30 +713,30 @@ export async function fetchSameNameTokens(
         const seen = new Set<string>();
         const results: SameNameToken[] = [];
 
-        for (const pair of data.pairs) {
+        for (const pair of pairs) {
             if (pair.chainId !== 'solana') continue;
-            const base = pair.baseToken as Record<string, unknown> | undefined;
-            if (!base) continue;
-            const pairName = String(base.name ?? '').toLowerCase();
-            const pairSymbol = String(base.symbol ?? '').toLowerCase();
-            const pairMint = String(base.address ?? '');
+            const base = asRecord(pair.baseToken);
+            const pairName = str(base.name).toLowerCase();
+            const pairSymbol = str(base.symbol).toLowerCase();
+            const pairMint = str(base.address);
+            if (!pairMint) continue;
             if (pairMint.toLowerCase() === excludeLower) continue;
             if (seen.has(pairMint)) continue;
 
             // Match on exact name or symbol (case-insensitive)
             if (pairName !== nameLower && pairSymbol !== symbolLower) continue;
 
-            const mc = Number(pair.marketCap ?? pair.fdv ?? 0);
+            const mc = num(pair.marketCap ?? pair.fdv);
             if (mc <= 0) continue;
 
             seen.add(pairMint);
-            const createdAt = Number(pair.pairCreatedAt ?? 0);
+            const createdAt = num(pair.pairCreatedAt);
             results.push({
                 mint: pairMint,
-                name: String(base.name ?? ''),
-                symbol: String(base.symbol ?? ''),
+                name: str(base.name),
+                symbol: str(base.symbol),
                 usdMarketCap: mc,
-                url: String(pair.url ?? ''),
+                url: str(pair.url),
                 age: createdAt > 0 ? formatAge(createdAt) : '',
             });
         }
