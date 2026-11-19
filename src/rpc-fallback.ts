@@ -158,12 +158,17 @@ export class RpcFallback {
     }
 }
 
+/**
+ * An RPC URL safe to log: the host only. Providers put API keys in the path
+ * (QuickNode, Alchemy) or the query (Helius), so neither is ever shown; "/…"
+ * marks that a path or query was dropped.
+ */
 export function maskUrl(url: string): string {
     try {
         const u = new URL(url);
-        const path = u.pathname.length > 1 ? u.pathname.slice(0, 12) + '…' : '';
-        return `${u.hostname}${path}`;
+        const host = u.port ? `${u.hostname}:${u.port}` : u.hostname;
+        return u.pathname.length > 1 || u.search ? `${host}/…` : host;
     } catch {
-        return url.slice(0, 30) + '…';
+        return '[invalid URL]';
     }
 }

@@ -15,12 +15,13 @@ describe('maskUrl', () => {
         expect(maskUrl('https://api.mainnet-beta.solana.com')).toBe('api.mainnet-beta.solana.com');
     });
 
-    it('truncates long path-based API keys', () => {
-        const url = 'https://rpc.helius.xyz/abcdefghijklmnopqrstuvwxyz0123456789';
-        const result = maskUrl(url);
-        expect(result).toContain('rpc.helius.xyz');
-        expect(result).toContain('…');
-        expect(result.length).toBeLessThan(url.length);
+    it('drops path-based API keys entirely', () => {
+        const url = 'https://example.solana-mainnet.quiknode.pro/abcdefghijklmnopqrstuvwxyz0123456789/';
+        expect(maskUrl(url)).toBe('example.solana-mainnet.quiknode.pro/…');
+    });
+
+    it('drops query-string API keys', () => {
+        expect(maskUrl('https://mainnet.helius-rpc.com/?api-key=SECRET')).toBe('mainnet.helius-rpc.com/…');
     });
 
     it('handles URLs with no path gracefully', () => {
@@ -28,17 +29,15 @@ describe('maskUrl', () => {
         expect(result).toBe('mainnet.rpc.example.com');
     });
 
-    it('handles non-URL strings without throwing', () => {
-        const result = maskUrl('not-a-valid-url');
-        expect(typeof result).toBe('string');
-        expect(result.length).toBeGreaterThan(0);
+    it('never echoes a string that does not parse as a URL', () => {
+        expect(maskUrl('not a url with SECRET key')).toBe('[invalid URL]');
     });
 
     it('masks query-param API keys (shows only hostname)', () => {
         const url = 'https://solana-mainnet.g.alchemy.com/v2/secretkey123';
         const result = maskUrl(url);
         expect(result).toContain('solana-mainnet.g.alchemy.com');
-        expect(result).not.toContain('secretkey');
+        expect(result).not.toContain('secret');
     });
 });
 
