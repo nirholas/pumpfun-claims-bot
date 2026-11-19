@@ -4,6 +4,7 @@
  * Watches the Pump program for graduations: CompleteEvent when the curve
  * completes (since synthetic migration this fires inside the completing buy)
  * and CompletePumpAmmMigrationEvent when migrate later opens the PumpSwap pool.
+ * Each mint is reported once, whichever of the two events arrives first.
  *
  * Events are decoded from "Program data:" log lines by src/pump-events.ts.
  * Two modes: WebSocket (real-time) or HTTP polling (fallback).
@@ -34,6 +35,8 @@ import { PUMP_PROGRAM_ID } from './types.js';
 const WS_HEARTBEAT_INTERVAL_MS = 60_000;
 const WS_HEARTBEAT_TIMEOUT_MS = 90_000;
 const MAX_PROCESSED_SIGNATURES = 10_000;
+/** Mints already reported; far more than graduate in a day. */
+const MAX_GRADUATED_MINTS = 20_000;
 
 export class EventMonitor {
     private rpc: RpcFallback;
@@ -46,6 +49,7 @@ export class EventMonitor {
     private wsSubscriptionId?: number;
     private lastSignature: string | undefined;
     private processedSignatures = new BoundedSet<string>(MAX_PROCESSED_SIGNATURES);
+    private graduatedMints = new BoundedSet<string>(MAX_GRADUATED_MINTS);
     private stopped = false;
     private isRunning = false;
     private lastWsEventTime = 0;
@@ -220,7 +224,7 @@ export class EventMonitor {
         const fallbackTime = blockTime ?? Math.floor(Date.now() / 1000);
         const migration = decodeMigrationEvent(bytes);
         if (migration) {
-            this.onGraduation({
+            this.emitGraduation({
                 txSignature: signature,
                 slot: 0,
                 timestamp: migration.timestamp || fallbackTime,
@@ -237,7 +241,7 @@ export class EventMonitor {
         }
         const complete = decodeCompleteEvent(bytes);
         if (!complete) return;
-        this.onGraduation({
+        this.emitGraduation({
             txSignature: signature,
             slot: 0,
             timestamp: complete.timestamp ?? fallbackTime,
@@ -246,5 +250,14 @@ export class EventMonitor {
             bondingCurve: complete.bondingCurve,
             isMigration: false,
         });
+    }
+
+    /** A curve completes once and migrates once: report the mint the first time only. */
+    private emitGraduation(event: GraduationEvent): void {
+        if (!this.graduatedMints.add(event.mintAddress)) {
+            log.debug('Graduation for %s already reported', event.mintAddress.slice(0, 8));
+            return;
+        }
+        this.onGraduation(event);
     }
 }

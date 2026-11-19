@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChannelBotConfig } from '../config.js';
 import type { GraduationEvent } from '../types.js';
 import { PUMP_PROGRAM_ID } from '../types.js';
-import { completeEvent, key, programData } from './pump-event-bytes.js';
+import { BorshWriter, completeEvent, key, programData } from './pump-event-bytes.js';
 
 const rpcState: { signatures: Array<{ signature: string; err: null }>; logsBySignature: Map<string, string[]> } = {
     signatures: [],
@@ -78,5 +78,27 @@ describe('EventMonitor polling', () => {
         expect(seen[0]!.mintAddress).toBe(mint);
         expect(seen[0]!.txSignature).toBe('sigA');
         expect(seen[0]!.isMigration).toBe(false);
+    });
+
+    it('reports a mint once when the curve completes and later migrates', async () => {
+        const mint = key(1);
+        const { EventMonitor } = await import('../event-monitor.js');
+        const seen: GraduationEvent[] = [];
+        const monitor = new EventMonitor(CONFIG, (e) => { seen.push(e); });
+        const migration = new BorshWriter()
+            .hex('bde95db95c94ea94')
+            .pubkey(key(5)).pubkey(mint)
+            .u64(206_900_000_000_000n).u64(84_990_000_000n).u64(15_000_000n)
+            .pubkey(key(6)).i64(1_790_000_100).pubkey(key(7))
+            .build();
+
+        monitor.handleLogEvent({ signature: 'sigComplete', err: null, logs: graduationLogs(mint) });
+        monitor.handleLogEvent({ signature: 'sigMigrate', err: null, logs: [programData(migration)] });
+        monitor.handleLogEvent({ signature: 'sigOther', err: null, logs: graduationLogs(key(2)) });
+
+        expect(seen.map((e) => [e.mintAddress, e.txSignature])).toEqual([
+            [mint, 'sigComplete'],
+            [key(2), 'sigOther'],
+        ]);
     });
 });
