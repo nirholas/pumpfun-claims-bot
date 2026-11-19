@@ -24,6 +24,7 @@ import {
     type SignaturesForAddressOptions,
 } from '@solana/web3.js';
 
+import { BoundedSet } from './bounded.js';
 import type { ChannelBotConfig } from './config.js';
 import { log } from './logger.js';
 import {
@@ -77,8 +78,7 @@ export class EventMonitor {
     private pollTimer?: ReturnType<typeof setInterval>;
     private wsSubscriptionId?: number;
     private lastSignature: string | undefined;
-    private processedSignatures = new Set<string>();
-    private readonly MAX_PROCESSED_CACHE = 10_000;
+    private processedSignatures = new BoundedSet<string>(10_000);
     private wsErrorCount = 0;
     private stopped = false;
     private isRunning = false;
@@ -194,9 +194,7 @@ export class EventMonitor {
     private async handleLogEvent(logInfo: Logs, blockTime?: number | null): Promise<void> {
         const { signature, logs: logLines, err } = logInfo;
         if (err) return;
-        if (this.processedSignatures.has(signature)) return;
-        this.processedSignatures.add(signature);
-        this.trimCache();
+        if (!this.processedSignatures.add(signature)) return;
 
         const payloads = programDataPayloads(logLines);
         for (const bytes of payloads) {
@@ -240,10 +238,8 @@ export class EventMonitor {
                 for (const sigInfo of sigs) {
                     if (sigInfo.err) continue;
                     if (this.processedSignatures.has(sigInfo.signature)) continue;
-                    this.processedSignatures.add(sigInfo.signature);
                     await this.fetchAndProcessLogs(sigInfo.signature);
                 }
-                this.trimCache();
             } catch (err) {
                 log.error('Event poll error:', err);
             }
@@ -344,13 +340,6 @@ export class EventMonitor {
         });
     }
 
-    private trimCache(): void {
-        if (this.processedSignatures.size > this.MAX_PROCESSED_CACHE) {
-            // Keep the most recent entries (Sets are insertion-ordered in JS)
-            const arr = [...this.processedSignatures];
-            this.processedSignatures = new Set(arr.slice(-5_000));
-        }
-    }
 }
 
 // ============================================================================
